@@ -1,0 +1,10 @@
+[package]
+name = "yuri"
+version = "0.0.1"
+edition = "2024"
+license = "Apache-2.0"
+
+[dependencies]
+nalgebra = "0.34.1"
+tree-sitter = "0.25.10"
+tree-sitter-yuri = { git = "https://git.gay/yuri/tree-sitter-yuri"}

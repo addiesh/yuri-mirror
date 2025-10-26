@@ -1,0 +1,88 @@
+; SPIR-V
+; Version: 1.0
+; Generator: Google Shaderc over Glslang; 11
+; Bound: 34
+; Schema: 0
+               OpCapability Shader
+          %2 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint Vertex %main "main" %_ %in_position %out_position %out_texcoord %in_texcoord
+          %1 = OpString "minimal.vert"
+               OpSource GLSL 460 %1 "// OpModuleProcessed entry-point main
+// OpModuleProcessed client vulkan100
+// OpModuleProcessed target-env vulkan1.0
+// OpModuleProcessed entry-point main
+#line 1
+layout(location = 0) in vec2 in_position;
+layout(location = 1) in vec2 in_texcoord;
+
+layout(location = 0) out vec2 out_position;
+layout(location = 1) out vec2 out_texcoord;
+
+void main() {
+    gl_Position = vec4(in_position, 0.0, 1.0);
+    out_position = in_position;
+    out_texcoord = in_texcoord;
+}
+"
+               OpSourceExtension "GL_GOOGLE_cpp_style_line_directive"
+               OpSourceExtension "GL_GOOGLE_include_directive"
+               OpName %main "main"
+               OpName %gl_PerVertex "gl_PerVertex"
+               OpMemberName %gl_PerVertex 0 "gl_Position"
+               OpMemberName %gl_PerVertex 1 "gl_PointSize"
+               OpMemberName %gl_PerVertex 2 "gl_ClipDistance"
+               OpMemberName %gl_PerVertex 3 "gl_CullDistance"
+               OpName %_ ""
+               OpName %in_position "in_position"
+               OpName %out_position "out_position"
+               OpName %out_texcoord "out_texcoord"
+               OpName %in_texcoord "in_texcoord"
+               OpMemberDecorate %gl_PerVertex 0 BuiltIn Position
+               OpMemberDecorate %gl_PerVertex 1 BuiltIn PointSize
+               OpMemberDecorate %gl_PerVertex 2 BuiltIn ClipDistance
+               OpMemberDecorate %gl_PerVertex 3 BuiltIn CullDistance
+               OpDecorate %gl_PerVertex Block
+               OpDecorate %in_position Location 0
+               OpDecorate %out_position Location 0
+               OpDecorate %out_texcoord Location 1
+               OpDecorate %in_texcoord Location 1
+       %void = OpTypeVoid
+          %4 = OpTypeFunction %void
+      %float = OpTypeFloat 32
+    %v4float = OpTypeVector %float 4
+       %uint = OpTypeInt 32 0
+     %uint_1 = OpConstant %uint 1
+%_arr_float_uint_1 = OpTypeArray %float %uint_1
+%gl_PerVertex = OpTypeStruct %v4float %float %_arr_float_uint_1 %_arr_float_uint_1
+%_ptr_Output_gl_PerVertex = OpTypePointer Output %gl_PerVertex
+          %_ = OpVariable %_ptr_Output_gl_PerVertex Output
+        %int = OpTypeInt 32 1
+      %int_0 = OpConstant %int 0
+    %v2float = OpTypeVector %float 2
+%_ptr_Input_v2float = OpTypePointer Input %v2float
+%in_position = OpVariable %_ptr_Input_v2float Input
+    %float_0 = OpConstant %float 0
+    %float_1 = OpConstant %float 1
+%_ptr_Output_v4float = OpTypePointer Output %v4float
+%_ptr_Output_v2float = OpTypePointer Output %v2float
+%out_position = OpVariable %_ptr_Output_v2float Output
+%out_texcoord = OpVariable %_ptr_Output_v2float Output
+%in_texcoord = OpVariable %_ptr_Input_v2float Input
+               OpLine %1 7 11
+       %main = OpFunction %void None %4
+          %6 = OpLabel
+               OpLine %1 8 0
+         %20 = OpLoad %v2float %in_position
+         %23 = OpCompositeExtract %float %20 0
+         %24 = OpCompositeExtract %float %20 1
+         %25 = OpCompositeConstruct %v4float %23 %24 %float_0 %float_1
+         %27 = OpAccessChain %_ptr_Output_v4float %_ %int_0
+               OpStore %27 %25
+               OpLine %1 9 0
+               OpStore %out_position %20
+               OpLine %1 10 0
+         %33 = OpLoad %v2float %in_texcoord
+               OpStore %out_texcoord %33
+               OpReturn
+               OpFunctionEnd

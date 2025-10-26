@@ -1,0 +1,38 @@
+; SPIR-V
+; Version: 1.0
+; Generator: Google Shaderc over Glslang; 11
+; Bound: 20
+; Schema: 0
+OpCapability Shader
+%2 = OpExtInstImport "GLSL.std.450"
+OpMemoryModel Logical GLSL450
+OpEntryPoint Fragment %main "main" %frag_color %tex_coord
+OpExecutionMode %main OriginUpperLeft
+%1 = OpString "minimal.frag"
+OpSourceExtension "GL_GOOGLE_cpp_style_line_directive"
+OpSourceExtension "GL_GOOGLE_include_directive"
+OpName %main "main"
+OpName %frag_color "frag_color"
+OpName %tex_coord "tex_coord"
+OpDecorate %frag_color Location 0
+OpDecorate %tex_coord Location 1
+%void = OpTypeVoid
+%4 = OpTypeFunction %void
+%float = OpTypeFloat 32
+%v4float = OpTypeVector %float 4
+%_ptr_Output_v4float = OpTypePointer Output %v4float
+%frag_color = OpVariable %_ptr_Output_v4float Output
+%v2float = OpTypeVector %float 2
+%_ptr_Input_v2float = OpTypePointer Input %v2float
+%tex_coord = OpVariable %_ptr_Input_v2float Input
+%float_0 = OpConstant %float 0
+%float_1 = OpConstant %float 1
+%main = OpFunction %void None %4
+%6 = OpLabel
+%14 = OpLoad %v2float %tex_coord
+%17 = OpCompositeExtract %float %14 0
+%18 = OpCompositeExtract %float %14 1
+%19 = OpCompositeConstruct %v4float %17 %18 %float_0 %float_1
+OpStore %frag_color %19
+OpReturn
+OpFunctionEnd

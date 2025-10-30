@@ -9,7 +9,7 @@ name = "yuri"
 path = "src/yuri.rs"
 
 [dependencies]
-yuri = { path = "../yuri", version = "0.0.0-alpha.park" }
+yuri-lang = { path = "../yuri", version = "0.0.0-alpha.park" }
 log = "0.4.28"
 env_logger = "0.11.8"
 rayon = "1.11.0"

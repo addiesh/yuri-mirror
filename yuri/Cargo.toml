@@ -1,14 +1,17 @@
 [package]
-name = "yuri"
+name = "yuri-lang"
 version = "0.0.0-alpha.park"
 license = "Apache-2.0"
-readme = "../README.md"
+readme = "README.md"
 repository = "https://git.gay/yuri/yuri"
 homepage = "https://yuri-lang.dev"
 description = "Compiler for the Yuri shader language."
 categories = ["compilers", "parser-implementations", "graphics"]
 keywords = ["graphics"]
 edition = "2024"
+
+[lib]
+name = "yuri"
 
 [dependencies]
 nalgebra = "0.34.1"

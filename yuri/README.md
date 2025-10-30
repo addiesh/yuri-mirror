@@ -1,9 +1,8 @@
-# The Yuri Shader Language
+# The Yuri Shader Compiler
 
 [![crates][crates]](https://crates.io/crates/yuri-lang)
 
-
-This repository is home to the Yuri shader compiler, including the CLI frontend and the Rust library backend.
+The [Yuri](https://yuri-lang.dev) shader compiler.
 
 ## Notes
 

@@ -2,3 +2,7 @@
 resolver = "2"
 members = ["yuri", "yuri-cli"]
 default-members = ["yuri", "yuri-cli"]
+repository = "https://git.gay/yuri/yuri"
+license = "Apache-2.0"
+homepage = "https://yuri-lang.dev"
+readme = "README.md"

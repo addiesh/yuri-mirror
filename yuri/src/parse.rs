@@ -139,19 +139,22 @@
 //     })
 // }
 
-// pub(super) fn parse_module<'a>(name: String, code: &str) -> Result<Module<'a>, YuriError> {
-//     let mut parser = Parser::new();
+use crate::{YuriError, compile::Module};
 
-//     parser.set_language(&tree_sitter_yuri::LANGUAGE.into())?;
-//     let tree = parser.parse(code, None).unwrap();
-//     let root_node = tree.root_node();
-//     let mut cursor = root_node.walk();
+pub(super) fn parse_module<'a>(name: String, code: &str) -> Result<Module<'a>, YuriError> {
+    todo!()
+    //     let mut parser = Parser::new();
 
-//     // root_node.child_count == 0
-//     if !cursor.goto_first_child() {
-//         warn!("parsed empty module");
-//         Ok(Module::empty(name))
-//     } else {
-//         parse_module_node(name, code, &mut cursor)
-//     }
-// }
+    //     parser.set_language(&tree_sitter_yuri::LANGUAGE.into())?;
+    //     let tree = parser.parse(code, None).unwrap();
+    //     let root_node = tree.root_node();
+    //     let mut cursor = root_node.walk();
+
+    //     // root_node.child_count == 0
+    //     if !cursor.goto_first_child() {
+    //         warn!("parsed empty module");
+    //         Ok(Module::empty(name))
+    //     } else {
+    //         parse_module_node(name, code, &mut cursor)
+    //     }
+}

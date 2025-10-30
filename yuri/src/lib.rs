@@ -1,7 +1,7 @@
 use crate::compile::Module;
 
 mod codegen;
-mod compile;
+pub mod compile;
 mod parse;
 
 use std::error::Error;
@@ -25,7 +25,6 @@ impl<'a> YuriContext<'a> {
         name: impl Into<String>,
         code: &str,
     ) -> Result<Module<'a>, YuriError> {
-        todo!()
-        // parse::parse_module(name.into(), code)
+        parse::parse_module(name.into(), code)
     }
 }

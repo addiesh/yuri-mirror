@@ -15,8 +15,13 @@ name = "yuri"
 
 [dependencies]
 nalgebra = "0.34.1"
-log = "0.4.28"
+log = { version = "0.4.28", optional = true }
 rayon = "1.11.0"
+rustc-hash = "2.1.1"
 # tree-sitter = "0.25.10"
 # tree-sitter-yuri = { git = "https://git.gay/yuri/tree-sitter-yuri"}
 rspirv = { version = "0.12.0", default-features = false }
+
+[features]
+default = ["log"]
+log = ["dep:log"]

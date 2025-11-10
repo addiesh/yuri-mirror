@@ -1,0 +1,10 @@
+[package]
+name = "yuri-parser"
+version = "0.0.0-alpha.indev.1"
+edition = "2024"
+homepage = "https://yuri-lang.dev"
+license = "Apache-2.0"
+
+[dependencies]
+yuri-lexer = { path = "../yuri-lexer" }
+rustc-hash = { workspace = true }

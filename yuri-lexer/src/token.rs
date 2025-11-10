@@ -1,0 +1,114 @@
+/// Parsed token.
+/// It doesn't contain information about data that has been parsed,
+/// only the type of the token and its size.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Token {
+    pub kind: TokenKind,
+    pub len: u32,
+}
+
+impl Token {
+    pub fn new(kind: TokenKind, len: u32) -> Token {
+        Token { kind, len }
+    }
+}
+
+/// Enum representing common lexeme types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TokenKind {
+    /// A line comment, e.g. `# comment`.
+    LineComment,
+
+    /// Any whitespace character sequence, except for newline.
+    Whitespace,
+    /// The newline character.
+    Newline,
+
+    /// An identifier or keyword, e.g. `ident` or `continue`.
+    Ident,
+
+    /// A *valid* literal.
+    Literal(LiteralKind),
+
+    /// `;`
+    Semi,
+    /// `,`
+    Comma,
+    /// `.`
+    Dot,
+    /// `(`
+    OpenParen,
+    /// `)`
+    CloseParen,
+    /// `{`
+    OpenBrace,
+    /// `}`
+    CloseBrace,
+    /// `{{`
+    OpenDoubleBrace,
+    /// `}}`
+    CloseDoubleBrace,
+    /// `[`
+    OpenBracket,
+    /// `]`
+    CloseBracket,
+    /// `@`
+    At,
+    /// `~`
+    Tilde,
+    /// `?`
+    Question,
+    /// `:`
+    Colon,
+    /// `$`
+    Dollar,
+    /// `=`
+    Eq,
+    /// `!`
+    Bang,
+    /// `<`
+    Lt,
+    /// `>`
+    Gt,
+    /// `-`
+    Minus,
+    /// `&`
+    And,
+    /// `|`
+    Or,
+    /// `+`
+    Plus,
+    /// `*`
+    Star,
+    /// `**`
+    DoubleStar,
+    /// `/`
+    Slash,
+    /// `^`
+    Caret,
+    /// `%`
+    Percent,
+
+    /// Unknown token, not expected by the lexer, e.g. "№"
+    Unknown,
+}
+
+/// Base of numeric literal encoding according to its prefix.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Base {
+    /// Literal starts with "0b".
+    Binary = 2,
+    /// Literal starts with "0o".
+    Octal = 8,
+    /// Literal doesn't contain a prefix.
+    Decimal = 10,
+    /// Literal starts with "0x".
+    Hexadecimal = 16,
+}
+
+/// Enum representing valid literals in Yuri. There aren't many.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum LiteralKind {
+    Int(Base),
+    Float,
+}

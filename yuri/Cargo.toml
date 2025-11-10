@@ -1,26 +1,28 @@
 [package]
 name = "yuri-lang"
-version = "0.0.0-alpha.park"
+version = "0.0.0-alpha.indev.1"
+edition = "2024"
+homepage = "https://yuri-lang.dev"
 license = "Apache-2.0"
 readme = "README.md"
 repository = "https://git.gay/yuri/yuri"
-homepage = "https://yuri-lang.dev"
 description = "Compiler for the Yuri shader language."
 categories = ["compilers", "parser-implementations", "graphics"]
 keywords = ["graphics"]
-edition = "2024"
 
 [lib]
 name = "yuri"
 
 [dependencies]
-nalgebra = "0.34.1"
-log = { version = "0.4.28", optional = true }
-rayon = "1.11.0"
-rustc-hash = "2.1.1"
+yuri-lexer = { path = "../yuri-lexer" }
+yuri-parser = { path = "../yuri-parser" }
+yuri-compiler = { path = "../yuri-compiler" }
+
+log = { workspace = true, optional = true }
+rayon = { workspace = true }
+# thin-vec = "0.2.14"
 # tree-sitter = "0.25.10"
 # tree-sitter-yuri = { git = "https://git.gay/yuri/tree-sitter-yuri"}
-rspirv = { version = "0.12.0", default-features = false }
 
 [features]
 default = ["log"]

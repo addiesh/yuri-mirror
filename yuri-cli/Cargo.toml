@@ -1,17 +1,19 @@
 [package]
 name = "yuri-cli"
-version = "0.0.0-alpha.park"
+version = "0.0.0-alpha.indev.1"
 edition = "2024"
+homepage = "https://yuri-lang.dev"
 license = "Apache-2.0"
+description = "CLI interface to the Yuri compiler."
 
 [[bin]]
 name = "yuri"
 path = "src/yuri.rs"
 
 [dependencies]
-yuri-lang = { path = "../yuri", version = "0.0.0-alpha.park" }
-log = "0.4.28"
+yuri-lang = { path = "../yuri", version = "0.0.0-alpha" }
+log = { workspace = true }
 env_logger = "0.11.8"
 rayon = "1.11.0"
 clap = { version = "4.5.50" }
-clap_complete = { version = "4.5.59" }
+# clap_complete = { version = "4.5.59" }

@@ -1,0 +1,29 @@
+import basic.my_frag_main
+
+# test
+@frag
+fn test(uv: f2): mat2 {
+
+	let variable = 0
+
+	let arrrr: [u, 8] = [variable; 8]
+
+	if false {
+		return 1
+	} else if false {
+		2
+	} else if false {
+		3
+	} else {
+		4
+	}
+}
+
+module not_std {
+	fn test(): mat2 {
+
+	}
+}
+
+#fn a(): One {}
+#fn b(): One.Two.Three.Four {}

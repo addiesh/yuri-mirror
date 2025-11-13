@@ -8,3 +8,5 @@ license = "Apache-2.0"
 [dependencies]
 yuri-lexer = { path = "../yuri-lexer" }
 rustc-hash = { workspace = true }
+smallvec = { workspace = true }
+thin-vec = { workspace = true }

@@ -31,7 +31,7 @@ pub fn _test_compile<'a>(fname: &'a str, input: &'a str) -> Result<(), CompileEr
     for token in &tokens {
         println!("{token:?}");
     }
-    let ast = yuri_parser::parse_all(&tokens)?;
+    let ast = yuri_parser::parse_all(input, &tokens)?;
     // let ir = yuri_compiler::compile_
     Ok(())
 }

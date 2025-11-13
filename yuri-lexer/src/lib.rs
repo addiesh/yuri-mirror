@@ -1,7 +1,7 @@
 // this module is basically a stripped-down rustc lexer.
 
 use crate::cursor::Cursor;
-use crate::token::{Base, LiteralKind, Token, TokenKind};
+use crate::token::{Base, LiteralKind};
 
 use LiteralKind::*;
 use TokenKind::*;
@@ -10,6 +10,8 @@ mod cursor;
 #[cfg(test)]
 mod test;
 pub mod token;
+pub use token::Token;
+pub use token::TokenKind;
 
 /// Creates an iterator that produces tokens from the input string.
 pub fn tokenize(input: &str) -> impl Iterator<Item = Token> {
@@ -159,8 +161,8 @@ impl Cursor<'_> {
             '>' => Gt,
             '-' => Minus,
             '+' => Plus,
-            '&' => And,
-            '|' => Or,
+            '&' => Amp,
+            '|' => Pipe,
             '^' => Caret,
             '/' => Slash,
             '%' => Percent,

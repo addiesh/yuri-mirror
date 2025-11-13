@@ -1,32 +1,33 @@
-use std::collections::HashMap;
-use std::fmt::{Debug, Display};
-use std::ops::Deref;
-
-use yuri_lexer::token::Token;
-
+use crate::error::ParseError;
 use crate::item::OuterDeclaration;
+use std::collections::HashMap;
+use std::ops::Deref;
+use thin_vec::ThinVec;
+use yuri_lexer::Token;
+use yuri_lexer::token::TokenKind;
 
+pub mod error;
 pub mod expression;
 pub mod item;
 pub mod parse;
 pub mod types;
 
-#[derive(Debug, Clone)]
-pub struct ParseError;
-impl Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Debug::fmt(&self, f)
-    }
+/// "Full" token
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TokenF {
+    pub kind: TokenKind,
+    pub byte_offset: u32,
+    pub len: u32,
 }
-impl std::error::Error for ParseError {}
 
-pub struct ParserStorage<'a> {
+#[derive(Default)]
+pub struct ParseStorage<'a> {
     ident_list: Vec<&'a str>,
     ident_set: HashMap<&'a str, usize>,
 }
 
-impl<'a> ParserStorage<'a> {
-    pub fn get_ident(&'a mut self, string: &'a str) -> Ident {
+impl<'a> ParseStorage<'a> {
+    pub fn create_ident(&mut self, string: &'a str) -> Ident {
         if let Some(ident) = Keyword::try_from_str(string) {
             Ident::Keyword(ident)
         } else if let Some(index) = self.ident_set.get(string) {
@@ -47,23 +48,20 @@ impl<'a> ParserStorage<'a> {
     }
 }
 
-type ParseState<'a> = &'a [Token];
-
-pub fn parse_all(
-    // impl Iterator<Item = Token>
-    tokens: &[Token],
-) -> Result<Vec<OuterDeclaration>, ParseError> {
-    // tokens.
-    todo!()
+pub fn parse_all(source: &str, tokens: &[Token]) -> Result<Vec<OuterDeclaration>, ParseError> {
+    let mut storage = ParseStorage::default();
+    parse::parse_all(&mut storage, source, tokens)
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Ident {
     Id(usize),
     Keyword(Keyword),
 }
 
+#[derive(Debug, Clone)]
 #[repr(transparent)]
-pub struct Qpath(Box<[Ident]>);
+pub struct Qpath(ThinVec<Ident>);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Keyword {
@@ -90,66 +88,290 @@ pub enum Keyword {
     Append,
     Prepend,
     Join,
+
+    Not,
+    Vec {
+        elements: DimensionCount,
+        repr: VectorRepr,
+    },
+    Mat {
+        dimensions: MatrixDimensions,
+        bitsize: Option<FloatBitSize>,
+    },
+    Int,
+    Float,
+    Sampler,
+    Tex1,
+    Tex2,
+    Tex2Array,
+    Tex3,
+    TexCube,
+    TexCubeArray,
 }
 
 impl Keyword {
     pub const fn as_str<'a>(self) -> &'a str {
+        use DimensionCount::*;
+        use FloatBitSize::*;
+        use IntBitSize::*;
+        use VectorRepr::*;
+
         match self {
-            Keyword::Import => "import",
-            Keyword::Export => "export",
-            Keyword::Fn => "fn",
-            Keyword::Let => "let",
-            Keyword::Type => "type",
-            Keyword::Module => "module",
-            Keyword::Break => "break",
-            Keyword::Continue => "continue",
-            Keyword::Else => "else",
-            Keyword::If => "if",
-            Keyword::Return => "return",
-            Keyword::And => "and",
-            Keyword::Or => "or",
-            Keyword::Xor => "xor",
-            Keyword::Loop => "loop",
-            Keyword::Fold => "fold",
-            Keyword::Reverse => "reverse",
-            Keyword::Map => "map",
-            Keyword::Flatten => "flatten",
-            Keyword::Filter => "filter",
-            Keyword::Append => "append",
-            Keyword::Prepend => "prepend",
-            Keyword::Join => "join",
+            Self::Import => "import",
+            Self::Export => "export",
+            Self::Fn => "fn",
+            Self::Let => "let",
+            Self::Type => "type",
+            Self::Module => "module",
+            Self::Break => "break",
+            Self::Continue => "continue",
+            Self::Else => "else",
+            Self::If => "if",
+            Self::Return => "return",
+            Self::And => "and",
+            Self::Or => "or",
+            Self::Xor => "xor",
+            Self::Loop => "loop",
+            Self::Fold => "fold",
+            Self::Reverse => "reverse",
+            Self::Map => "map",
+            Self::Flatten => "flatten",
+            Self::Filter => "filter",
+            Self::Append => "append",
+            Self::Prepend => "prepend",
+            Self::Join => "join",
+            Self::Not => "not",
+            Self::Int => "int",
+            Self::Float => "float",
+            Self::Sampler => "sampler",
+            Self::Tex1 => "tex1",
+            Self::Tex2 => "tex2",
+            Self::Tex2Array => "tex2array",
+            Self::Tex3 => "tex3",
+            Self::TexCube => "texcube",
+            Self::TexCubeArray => "texcubearray",
+            Self::Vec { elements, repr } => match (elements, repr) {
+                (Two, Unsigned(None)) => "vec2u",
+                (Three, Unsigned(None)) => "vec3u",
+                (Four, Unsigned(None)) => "vec4u",
+
+                (Two, Signed(None)) => "vec2i",
+                (Three, Signed(None)) => "vec3i",
+                (Four, Signed(None)) => "vec4i",
+
+                (Two, Float(None)) => "vec2f",
+                (Three, Float(None)) => "vec3f",
+                (Four, Float(None)) => "vec4f",
+
+                (Two, Unsigned(Some(int_bit_size))) => match int_bit_size {
+                    Int8 => "vec2u8",
+                    Int16 => "vec2u16",
+                    Int32 => "vec2u32",
+                    Int64 => "vec2u64",
+                },
+                (Two, Signed(Some(int_bit_size))) => match int_bit_size {
+                    Int8 => "vec2f8",
+                    Int16 => "vec2f16",
+                    Int32 => "vec2f32",
+                    Int64 => "vec2f64",
+                },
+                (Two, Float(Some(float_bit_size))) => match float_bit_size {
+                    Float16 => "vec2f16",
+                    Float32 => "vec2f32",
+                    Float64 => "vec2f64",
+                },
+                (Three, Unsigned(Some(int_bit_size))) => match int_bit_size {
+                    Int8 => "vec3u8",
+                    Int16 => "vec3u16",
+                    Int32 => "vec3u32",
+                    Int64 => "vec3u64",
+                },
+                (Three, Signed(Some(int_bit_size))) => match int_bit_size {
+                    Int8 => "ve3iu8",
+                    Int16 => "vec3i16",
+                    Int32 => "vec3i32",
+                    Int64 => "vec3i64",
+                },
+                (Three, Float(Some(float_bit_size))) => match float_bit_size {
+                    Float16 => "vec3f16",
+                    Float32 => "vec3f32",
+                    Float64 => "vec3f64",
+                },
+                (Four, Unsigned(Some(int_bit_size))) => match int_bit_size {
+                    Int8 => todo!(),
+                    Int16 => todo!(),
+                    Int32 => todo!(),
+                    Int64 => todo!(),
+                },
+                (Four, Signed(Some(int_bit_size))) => match int_bit_size {
+                    Int8 => todo!(),
+                    Int16 => todo!(),
+                    Int32 => todo!(),
+                    Int64 => todo!(),
+                },
+                (Four, Float(Some(float_bit_size))) => match float_bit_size {
+                    Float16 => todo!(),
+                    Float32 => todo!(),
+                    Float64 => todo!(),
+                },
+            },
+            Self::Mat {
+                dimensions,
+                bitsize,
+            } => match dimensions {
+                MatrixDimensions::Short(Two) => match bitsize {
+                    None => "mat2",
+                    Some(Float16) => "mat2f16",
+                    Some(Float32) => "mat2f32",
+                    Some(Float64) => "mat2f64",
+                },
+                MatrixDimensions::Short(Three) => match bitsize {
+                    None => "mat3",
+                    Some(Float16) => "mat3f16",
+                    Some(Float32) => "mat3f32",
+                    Some(Float64) => "mat3f64",
+                },
+                MatrixDimensions::Short(Four) => match bitsize {
+                    None => "mat4",
+                    Some(Float16) => "mat4f16",
+                    Some(Float32) => "mat4f32",
+                    Some(Float64) => "mat4f64",
+                },
+                MatrixDimensions::Long { columns, rows } => match (columns, rows) {
+                    (Two, Two) => match bitsize {
+                        None => "mat2x2",
+                        Some(Float16) => "mat2x2f16",
+                        Some(Float32) => "mat2x2f32",
+                        Some(Float64) => "mat2x2f64",
+                    },
+                    (Two, Three) => match bitsize {
+                        None => "mat2x3",
+                        Some(Float16) => "mat2x3f16",
+                        Some(Float32) => "mat2x3f32",
+                        Some(Float64) => "mat2x3f64",
+                    },
+                    (Two, Four) => match bitsize {
+                        None => "mat4",
+                        Some(Float16) => "mat4f16",
+                        Some(Float32) => "mat4f32",
+                        Some(Float64) => "mat4f64",
+                    },
+                    (Three, Two) => match bitsize {
+                        None => "mat3x2",
+                        Some(Float16) => "mat3x2f16",
+                        Some(Float32) => "mat3x2f32",
+                        Some(Float64) => "mat3x2f64",
+                    },
+                    (Three, Three) => match bitsize {
+                        None => "mat3x3",
+                        Some(Float16) => "mat3x3f16",
+                        Some(Float32) => "mat3x3f32",
+                        Some(Float64) => "mat3x3f64",
+                    },
+                    (Three, Four) => match bitsize {
+                        None => "mat3x4",
+                        Some(Float16) => "mat3x4f16",
+                        Some(Float32) => "mat3x4f32",
+                        Some(Float64) => "mat3x4f64",
+                    },
+                    (Four, Two) => match bitsize {
+                        None => "mat4x2",
+                        Some(Float16) => "mat4x2f16",
+                        Some(Float32) => "mat4x2f32",
+                        Some(Float64) => "mat4x2f64",
+                    },
+                    (Four, Three) => match bitsize {
+                        None => "mat4x3",
+                        Some(Float16) => "mat4x3f16",
+                        Some(Float32) => "mat4x3f32",
+                        Some(Float64) => "mat4x3f64",
+                    },
+                    (Four, Four) => match bitsize {
+                        None => "mat4x4",
+                        Some(Float16) => "mat4x4f16",
+                        Some(Float32) => "mat4x4f32",
+                        Some(Float64) => "mat4x4f64",
+                    },
+                },
+            },
         }
     }
 
     // PartialEq isn't const :/
     pub fn try_from_str(value: &str) -> Option<Self> {
         Some(match value {
-            "import" => Keyword::Import,
-            "export" => Keyword::Export,
-            "fn" => Keyword::Fn,
-            "let" => Keyword::Let,
-            "type" => Keyword::Type,
-            "module" => Keyword::Module,
-            "break" => Keyword::Break,
-            "continue" => Keyword::Continue,
-            "else" => Keyword::Else,
-            "if" => Keyword::If,
-            "return" => Keyword::Return,
-            "and" => Keyword::And,
-            "or" => Keyword::Or,
-            "xor" => Keyword::Xor,
-            "loop" => Keyword::Loop,
-            "fold" => Keyword::Fold,
-            "reverse" => Keyword::Reverse,
-            "map" => Keyword::Map,
-            "flatten" => Keyword::Flatten,
-            "filter" => Keyword::Filter,
-            "append" => Keyword::Append,
-            "prepend" => Keyword::Prepend,
-            "join" => Keyword::Join,
+            "import" => Self::Import,
+            "export" => Self::Export,
+            "fn" => Self::Fn,
+            "let" => Self::Let,
+            "type" => Self::Type,
+            "module" => Self::Module,
+            "break" => Self::Break,
+            "continue" => Self::Continue,
+            "else" => Self::Else,
+            "if" => Self::If,
+            "return" => Self::Return,
+            "and" => Self::And,
+            "or" => Self::Or,
+            "xor" => Self::Xor,
+            "loop" => Self::Loop,
+            "fold" => Self::Fold,
+            "reverse" => Self::Reverse,
+            "map" => Self::Map,
+            "flatten" => Self::Flatten,
+            "filter" => Self::Filter,
+            "append" => Self::Append,
+            "prepend" => Self::Prepend,
+            "join" => Self::Join,
+            "not" => Self::Not,
+            "int" => Self::Int,
+            "float" => Self::Float,
+            "sampler" => Self::Sampler,
+            "tex1" => Self::Tex1,
+            "tex2" => Self::Tex2,
+            "tex2array" => Self::Tex2Array,
+            "tex3" => Self::Tex3,
+            "texcube" => Self::TexCube,
+            "texcubearray" => Self::TexCubeArray,
             _ => return None,
         })
     }
 }
 
-// pub static RESERVED_IDENTIFIERS: [&str; _] = ["not", "sampler"];
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DimensionCount {
+    Two,
+    Three,
+    Four,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IntBitSize {
+    Int8,
+    Int16,
+    Int32,
+    Int64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FloatBitSize {
+    Float16,
+    Float32,
+    Float64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VectorRepr {
+    Unsigned(Option<IntBitSize>),
+    Signed(Option<IntBitSize>),
+    Float(Option<FloatBitSize>),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MatrixDimensions {
+    Short(DimensionCount),
+    Long {
+        columns: DimensionCount,
+        rows: DimensionCount,
+    },
+}

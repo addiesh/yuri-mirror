@@ -187,6 +187,7 @@ impl<'a> sealed::ExpressionTrait<'a> for Resolution<'a, Weak<VariableItem<'a>>> 
 
 pub enum LiteralExpression {
     Bool(bool),
+    /// A numeric literal with an explicit decimal point
     Decimal(f32),
     /// An integer with no sign or decimal point.
     Integer(u32),

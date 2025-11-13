@@ -73,9 +73,9 @@ pub enum TokenKind {
     /// `-`
     Minus,
     /// `&`
-    And,
+    Amp,
     /// `|`
-    Or,
+    Pipe,
     /// `+`
     Plus,
     /// `*`

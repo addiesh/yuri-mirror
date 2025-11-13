@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::sync::{Arc, Weak};
 
-use yuri_parser::ParseError;
+use yuri_parser::error::ParseError;
 
 use crate::item::{FunctionItem, TypeAliasItem, VariableItem};
 use crate::types::TypeValue;

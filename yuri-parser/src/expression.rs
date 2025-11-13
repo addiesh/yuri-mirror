@@ -1,8 +1,8 @@
-use std::fmt::{Display, Formatter};
-
 use crate::Ident;
 use crate::item::{FunctionItem, TypeAliasItem, VariableItem};
+use std::fmt::{Display, Formatter};
 
+#[derive(Debug, Clone)]
 pub enum Expression {
     /// Load the value of a given variable.
     Variable(Ident),
@@ -16,6 +16,8 @@ pub enum Expression {
     CompoundInit(CompoundExpression),
     Block(BlockExpression),
     Paren(Box<Expression>),
+    #[cfg(debug_assertions)]
+    Unimplemented,
 }
 
 impl Display for Expression {
@@ -25,15 +27,18 @@ impl Display for Expression {
 }
 
 // TODO: disambiguate between hex/binary/etc.
+#[derive(Debug, Clone, Copy)]
 pub enum LiteralExpression {
     Bool(bool),
-    Decimal(f32),
-    /// An integer with no sign or decimal point.
-    Integer(u32),
-    /// An integer with an explicitly specified sign.
-    SignedInt(i32),
+    /// Known to be a float (i.e. decimal point)
+    Decimal(f64),
+    /// Known to be an integer (i.e. non-decimal base)
+    Integer(i128),
+    /// May be coerced to any possible type
+    Number(i128),
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum UnaryOperator {
     // ~
     BitwiseNot,
@@ -45,11 +50,13 @@ pub enum UnaryOperator {
     Positive,
 }
 
+#[derive(Debug, Clone)]
 pub struct UnaryExpression {
     pub operator: UnaryOperator,
     pub value: Box<Expression>,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum BinaryOperator {
     // "and"
     LogicAnd,
@@ -74,9 +81,9 @@ pub enum BinaryOperator {
     // <=
     LtEq,
     // >
-    Gr,
+    Gt,
     // >=
-    GrEq,
+    GtEq,
     // <<
     ShiftLeft,
     // >>
@@ -84,7 +91,7 @@ pub enum BinaryOperator {
     // +
     Add,
     // -
-    Subtract,
+    Sub,
     // *
     Multiply,
     // **
@@ -95,12 +102,14 @@ pub enum BinaryOperator {
     Remainder,
 }
 
+#[derive(Debug, Clone)]
 pub struct BinaryExpression {
     pub operator: BinaryOperator,
-    pub a: Box<Expression>,
-    pub b: Box<Expression>,
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
 }
 
+#[derive(Debug, Clone)]
 pub enum InnerDeclaration {
     Global(VariableItem),
     Function(FunctionItem),
@@ -108,6 +117,7 @@ pub enum InnerDeclaration {
 }
 
 /// Local block element.
+#[derive(Debug, Clone)]
 pub enum BlockStatement {
     LocalVariable(VariableItem),
     TypeAlias(TypeAliasItem),
@@ -116,24 +126,28 @@ pub enum BlockStatement {
     Import(Ident),
 }
 
+#[derive(Debug, Clone)]
 pub struct BlockExpression {
     /// The scope that this block creates.
     pub statements: Vec<BlockStatement>,
     pub tail: Option<Box<Expression>>,
 }
 
+#[derive(Debug, Clone)]
 pub struct IfExpression {
     pub consequence: Box<BlockExpression>,
     pub condition: Box<Expression>,
     pub chained_else: Option<Box<ElseChain>>,
 }
 
+#[derive(Debug, Clone)]
 pub struct ElseChain {
     pub consequence: BlockExpression,
     pub condition: Option<Box<Expression>>,
     pub chained_else: Option<Box<ElseChain>>,
 }
 
+#[derive(Debug, Clone)]
 pub enum ArrayExpression {
     Elements(Vec<Expression>),
     Spread {
@@ -142,16 +156,19 @@ pub enum ArrayExpression {
     },
 }
 
+#[derive(Debug, Clone)]
 pub struct CompoundExpression {
     pub fields: Vec<CompoundExpressionField>,
 }
 
+#[derive(Debug, Clone)]
 pub struct CompoundExpressionField {
     pub target_field: Ident,
     pub expression: Expression,
 }
 
+#[derive(Debug, Clone)]
 pub struct CallExpression {
-    pub function: Ident,
+    pub receiver: Box<Expression>,
     pub arguments: Vec<Expression>,
 }

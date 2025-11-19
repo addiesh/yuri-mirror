@@ -192,6 +192,7 @@ impl Cursor<'_> {
         debug_assert!(is_id_start(self.prev()));
         // Start is already eaten, eat the rest of identifier.
         self.eat_while(is_id_continue);
+        self.pos_within_token();
         Ident
     }
 

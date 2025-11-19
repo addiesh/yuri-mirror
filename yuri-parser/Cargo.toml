@@ -6,6 +6,7 @@ homepage = "https://yuri-lang.dev"
 license = "Apache-2.0"
 
 [dependencies]
+yuri-common = { path = "../yuri-common" }
 yuri-lexer = { path = "../yuri-lexer" }
 rustc-hash = { workspace = true }
 smallvec = { workspace = true }

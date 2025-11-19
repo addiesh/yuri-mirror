@@ -1,11 +1,14 @@
-use crate::Ident;
-use crate::item::{FunctionItem, TypeAliasItem, VariableItem};
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug, Clone)]
+use yuri_common::{BinaryOperator, UnaryOperator};
+
+use crate::item::{FunctionItem, TypeAliasItem, VariableItem};
+use crate::{Ident, Qpath};
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     /// Load the value of a given variable.
-    Variable(Ident),
+    Variable(Qpath),
     /// A value to be evaluated at compile-time.
     Literal(LiteralExpression),
     Unary(UnaryExpression),
@@ -20,89 +23,56 @@ pub enum Expression {
     Unimplemented,
 }
 
+macro_rules! expression_from_helper {
+    ($from:ty, $variant:ident) => {
+        impl From<$from> for Expression {
+            fn from(value: $from) -> Self {
+                Expression::$variant(value)
+            }
+        }
+
+        impl From<$from> for Box<Expression> {
+            fn from(value: $from) -> Self {
+                Box::new(Expression::$variant(value))
+            }
+        }
+    };
+}
+expression_from_helper!(LiteralExpression, Literal);
+expression_from_helper!(UnaryExpression, Unary);
+expression_from_helper!(BinaryExpression, Binary);
+expression_from_helper!(ArrayExpression, Array);
+expression_from_helper!(IfExpression, IfExpr);
+expression_from_helper!(CallExpression, FunctionalCall);
+expression_from_helper!(CompoundExpression, CompoundInit);
+expression_from_helper!(BlockExpression, Block);
+
 impl Display for Expression {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "todo")
+    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
+        todo!()
     }
 }
 
 // TODO: disambiguate between hex/binary/etc.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LiteralExpression {
     Bool(bool),
     /// Known to be a float (i.e. decimal point)
     Decimal(f64),
+    // TODO: improve this specificity
     /// Known to be an integer (i.e. non-decimal base)
     Integer(i128),
     /// May be coerced to any possible type
     Number(i128),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum UnaryOperator {
-    // ~
-    BitwiseNot,
-    // !
-    LogicalNot,
-    // -
-    Negative,
-    // +
-    Positive,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UnaryExpression {
     pub operator: UnaryOperator,
     pub value: Box<Expression>,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum BinaryOperator {
-    // "and"
-    LogicAnd,
-    // "or"
-    LogicOr,
-    // "xor"
-    LogicXor,
-
-    // &
-    BitAnd,
-    // |
-    BitOr,
-    // ^
-    BitXor,
-
-    // ==
-    Eq,
-    // !=
-    NotEq,
-    // <
-    Lt,
-    // <=
-    LtEq,
-    // >
-    Gt,
-    // >=
-    GtEq,
-    // <<
-    ShiftLeft,
-    // >>
-    ShiftRight,
-    // +
-    Add,
-    // -
-    Sub,
-    // *
-    Multiply,
-    // **
-    Exponent,
-    // /
-    Divide,
-    // %
-    Remainder,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BinaryExpression {
     pub operator: BinaryOperator,
     pub left: Box<Expression>,
@@ -117,37 +87,37 @@ pub enum InnerDeclaration {
 }
 
 /// Local block element.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BlockStatement {
     LocalVariable(VariableItem),
     TypeAlias(TypeAliasItem),
     Function(FunctionItem),
     Return(Expression),
     Import(Ident),
+    Value(Box<Expression>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BlockExpression {
     /// The scope that this block creates.
     pub statements: Vec<BlockStatement>,
-    pub tail: Option<Box<Expression>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IfExpression {
     pub consequence: Box<BlockExpression>,
     pub condition: Box<Expression>,
     pub chained_else: Option<Box<ElseChain>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ElseChain {
     pub consequence: BlockExpression,
     pub condition: Option<Box<Expression>>,
     pub chained_else: Option<Box<ElseChain>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ArrayExpression {
     Elements(Vec<Expression>),
     Spread {
@@ -156,18 +126,18 @@ pub enum ArrayExpression {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CompoundExpression {
     pub fields: Vec<CompoundExpressionField>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CompoundExpressionField {
     pub target_field: Ident,
     pub expression: Expression,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CallExpression {
     pub receiver: Box<Expression>,
     pub arguments: Vec<Expression>,

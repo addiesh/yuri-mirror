@@ -1,150 +1,34 @@
-mod duck {
-    use crate::*;
-
-    #[test]
-    fn compound_types() {
-        // let pairs = [
-        //     (
-        //         CompoundType { fields: vec![] },
-        //         CompoundType { fields: vec![] },
-        //         Ok(CompoundType { fields: vec![] }),
-        //     ),
-        //     (
-        //         CompoundType {
-        //             fields: vec![CompoundTypeField {
-        //                 name: "single type".into(),
-        //                 attributes: vec![],
-        //                 field_type: TypeValue::Primitive(Primitive::Bool(None)),
-        //             }],
-        //         },
-        //         CompoundType { fields: vec![] },
-        //         Err(CompileError::IncompatibleFieldCount(1, 0)),
-        //     ),
-        // ];
-
-        // for (a, b, expected) in pairs {
-        //     assert_eq!(a.quack(&b), expected);
-        // }
-    }
-}
+use thin_vec::thin_vec;
 
 #[test]
-fn artificial_module() {
-    // let mut example_root_scope = Arc::new(Scope {
-    //     parent: None,
-    //     variables: vec![],
-    //     parameters: vec![],
-    //     functions: vec![],
-    //     imports: vec![],
-    //     type_aliases: vec![],
-    //     rules: vec![],
-    // });
+fn test_lower() {
+    use yuri_parser::ParseStorage;
 
-    // let mut function_scope = Arc::new(Scope {
-    //     parent: Some(Arc::downgrade(&example_root_scope)),
-    //     variables: vec![],
-    //     parameters: vec![],
-    //     functions: vec![],
-    //     imports: vec![],
-    //     type_aliases: vec![],
-    //     rules: vec![],
-    // });
+    let source = "
+# test
+@frag
+fn test(uv: f2): mat2 {
 
-    // let uv_param = Arc::new(VariableItem {
-    //     name: "uv".into(),
-    //     parent_scope: Arc::downgrade(&function_scope),
-    //     explicit_type: Some(TypeValue::Primitive(Primitive::Float2(None))),
-    //     value: None,
-    // });
+	let variable = 0
 
-    // function_scope.parameters.push(uv_param);
+	let arrrr: [u, 8] = [variable; 8]
 
-    // let variable_let = Arc::new(VariableItem {
-    //     name: "variable".into(),
-    //     parent_scope: Arc::downgrade(&function_scope),
-    //     explicit_type: None,
-    //     value: Some(Expression::Literal(ExpressionLiteral::Integer(0))),
-    // });
-
-    // let arrrr_let = Arc::new(VariableItem {
-    //     name: "arrrr".into(),
-    //     parent_scope: Arc::downgrade(&function_scope),
-    //     explicit_type: Some(TypeValue::Array(Array {
-    //         elements: None,
-    //         explicit_type: Some(ArrayType {
-    //             element_type: Box::new(TypeValue::Primitive(Primitive::Unsigned1(None))),
-    //             len: Some(8),
-    //         }),
-    //     })),
-    //     value: Some(Expression::Array(ArrayExpression::Spread {
-    //         element: Box::new(Expression::Variable(Resolution::Resolved {
-    //             identifier: ItemPath::new(&["variable"]).unwrap(),
-    //             item: Arc::downgrade(&variable_let),
-    //         })),
-    //         length: Box::new(Expression::Literal(ExpressionLiteral::Integer(8))),
-    //     })),
-    // });
-
-    // Arc::new(FunctionItem {
-    //     attributes: vec![],
-    //     name: "test".into(),
-    //     return_type: TypeValue::Primitive(Primitive::Mat2(None)),
-    //     body: BlockExpression {
-    //         scope: function_scope,
-    //         statements: vec![BlockStatement::Variable(Arc::downgrade(
-    //             &function_scope.variables[1],
-    //         ))],
-    //         tail: None,
-    //     },
-    //     parameters: vec![uv_param],
-    // });
-
-    // let not_std_scope = Arc::new_cyclic(|scope| Scope {
-    //     parent: Some(Arc::downgrade(&example_root_scope)),
-    //     variables: vec![],
-    //     parameters: vec![],
-    //     functions: vec![Arc::new(FunctionItem {
-    //         attributes: vec![],
-    //         name: "test".into(),
-    //         parameters: vec![],
-    //         return_type: TypeValue::Primitive(Primitive::Mat2(None)),
-    //         body: BlockExpression {
-    //             scope: Arc::new(Scope {
-    //                 parent: Some(scope.clone()),
-    //                 variables: vec![],
-    //                 parameters: vec![],
-    //                 functions: vec![],
-    //                 imports: vec![],
-    //                 type_aliases: vec![],
-    //                 rules: vec![],
-    //             }),
-    //             statements: vec![],
-    //             tail: None,
-    //         },
-    //     })],
-    //     imports: vec![],
-    //     type_aliases: vec![],
-    //     rules: vec![],
-    // });
-
-    // let example = Arc::new_cyclic(|scope| Module {
-    //     parent: None,
-    //     name: "example".into(),
-    //     submodules: vec![Arc::new(Module {
-    //         parent: Some(scope.clone()),
-    //         name: "not_std".into(),
-    //         submodules: vec![],
-    //         scope: not_std_scope,
-    //     })],
-    //     scope: example_root_scope,
-    // });
+	if false {
+		return 1
+	} else if false {
+		2
+	} else if false {
+		3
+	} else {
+		4
+	}
 }
+";
 
-#[test]
-fn _understanding_rustc() {
-    let ur = {
-        return;
-    };
+    let tokens: Box<[_]> = yuri_lexer::tokenize(source).collect();
+    let mut storage = ParseStorage::default();
 
-    println!("unreachable")
+    let ast = yuri_parser::parse_all(&mut storage, source, &tokens).unwrap();
+
+    let lowered = crate::lower::lower(&mut storage, source, &ast).unwrap();
 }

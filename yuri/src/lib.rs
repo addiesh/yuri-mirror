@@ -1,6 +1,8 @@
-use std::{error::Error, marker::PhantomData};
+use std::error::Error;
+use std::marker::PhantomData;
 
-use yuri_compiler::CompileError;
+use yuri_compiler::error::CompileError;
+use yuri_parser::ParseStorage;
 
 pub type YuriError = Box<dyn Error + Send + Sync + 'static>;
 
@@ -31,7 +33,8 @@ pub fn _test_compile<'a>(fname: &'a str, input: &'a str) -> Result<(), CompileEr
     for token in &tokens {
         println!("{token:?}");
     }
-    let ast = yuri_parser::parse_all(input, &tokens)?;
+    let mut storage = ParseStorage::default();
+    let ast = yuri_parser::parse_all(&mut storage, input, &tokens)?;
     // let ir = yuri_compiler::compile_
     Ok(())
 }

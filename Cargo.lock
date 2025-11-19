@@ -720,11 +720,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "yuri-common"
+version = "0.1.0"
+
+[[package]]
 name = "yuri-compiler"
 version = "0.0.0-alpha.indev.1"
 dependencies = [
  "nalgebra",
  "rustc-hash",
+ "thin-vec",
+ "yuri-common",
  "yuri-lexer",
  "yuri-parser",
 ]
@@ -755,5 +761,6 @@ dependencies = [
  "rustc-hash",
  "smallvec",
  "thin-vec",
+ "yuri-common",
  "yuri-lexer",
 ]

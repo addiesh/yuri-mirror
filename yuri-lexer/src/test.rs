@@ -64,7 +64,55 @@ fn sequences() {
         "{ {{",
         [(OpenBrace, 1), (Whitespace, 1), (OpenDoubleBrace, 2)]
     );
+    lex_test!("}}}", [(CloseDoubleBrace, 2), (CloseBrace, 1)]);
+    lex_test!(
+        "} }}",
+        [(CloseBrace, 1), (Whitespace, 1), (CloseDoubleBrace, 2)]
+    );
 }
+
+// #[test]
+// fn idents() {
+//     let fake = [
+//         "letter", "fnod", "exported", "imported", "typeist", "modulear", "returned", "andy",
+//         "xorph", "orwell", "iffy",
+//     ];
+//     let real = [
+//         ("let", KwLet),
+//         ("fn", KwFn),
+//         ("export", KwExport),
+//         ("import", KwImport),
+//         ("type", KwType),
+//         ("module", KwModule),
+//         ("return", KwReturn),
+//         ("and", KwAnd),
+//         ("xor", KwXor),
+//         ("or", KwOr),
+//         ("if", KwIf),
+//     ];
+
+//     for fake_kw in fake {
+//         lex_test!(
+//             &format!(" {fake_kw} "),
+//             [
+//                 (Whitespace, 1),
+//                 (Ident, fake_kw.len() as u32),
+//                 (Whitespace, 1),
+//             ]
+//         );
+//     }
+//     for (real_kw, kw_kind) in real {
+//         lex_test!(
+//             &format!(" {real_kw} "),
+//             [
+//                 (Whitespace, 1),
+//                 (kw_kind, real_kw.len() as u32),
+//                 (Whitespace, 1),
+//             ]
+//         );
+//     }
+// }
+
 #[test]
 fn whitespace() {
     // LF

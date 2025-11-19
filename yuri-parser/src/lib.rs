@@ -1,16 +1,22 @@
-use crate::error::ParseError;
-use crate::item::OuterDeclaration;
 use std::collections::HashMap;
 use std::ops::Deref;
+
 use thin_vec::ThinVec;
-use yuri_lexer::Token;
+use yuri_common::{DimensionCount, FloatBits, IntBits};
 use yuri_lexer::token::TokenKind;
+
+use crate::error::ParseError;
+use crate::item::OuterDeclaration;
+
+pub use parse::parse_all;
 
 pub mod error;
 pub mod expression;
 pub mod item;
 pub mod parse;
 pub mod types;
+
+pub type Ast = Vec<OuterDeclaration>;
 
 /// "Full" token
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,7 +33,7 @@ pub struct ParseStorage<'a> {
 }
 
 impl<'a> ParseStorage<'a> {
-    pub fn create_ident(&mut self, string: &'a str) -> Ident {
+    pub fn to_ident(&mut self, string: &'a str) -> Ident {
         if let Some(ident) = Keyword::try_from_str(string) {
             Ident::Keyword(ident)
         } else if let Some(index) = self.ident_set.get(string) {
@@ -48,20 +54,15 @@ impl<'a> ParseStorage<'a> {
     }
 }
 
-pub fn parse_all(source: &str, tokens: &[Token]) -> Result<Vec<OuterDeclaration>, ParseError> {
-    let mut storage = ParseStorage::default();
-    parse::parse_all(&mut storage, source, tokens)
-}
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Ident {
     Id(usize),
     Keyword(Keyword),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[repr(transparent)]
-pub struct Qpath(ThinVec<Ident>);
+pub struct Qpath(pub ThinVec<Ident>);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Keyword {
@@ -89,6 +90,11 @@ pub enum Keyword {
     Prepend,
     Join,
 
+    True,
+    False,
+    NaN,
+    Inf,
+
     Not,
     Vec {
         elements: DimensionCount,
@@ -96,7 +102,7 @@ pub enum Keyword {
     },
     Mat {
         dimensions: MatrixDimensions,
-        bitsize: Option<FloatBitSize>,
+        bitsize: Option<FloatBits>,
     },
     Int,
     Float,
@@ -112,8 +118,8 @@ pub enum Keyword {
 impl Keyword {
     pub const fn as_str<'a>(self) -> &'a str {
         use DimensionCount::*;
-        use FloatBitSize::*;
-        use IntBitSize::*;
+        use FloatBits::*;
+        use IntBits::*;
         use VectorRepr::*;
 
         match self {
@@ -140,6 +146,10 @@ impl Keyword {
             Self::Append => "append",
             Self::Prepend => "prepend",
             Self::Join => "join",
+            Self::True => "true",
+            Self::False => "false",
+            Self::NaN => "NaN",
+            Self::Inf => "Inf",
             Self::Not => "not",
             Self::Int => "int",
             Self::Float => "float",
@@ -339,32 +349,10 @@ impl Keyword {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DimensionCount {
-    Two,
-    Three,
-    Four,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum IntBitSize {
-    Int8,
-    Int16,
-    Int32,
-    Int64,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FloatBitSize {
-    Float16,
-    Float32,
-    Float64,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VectorRepr {
-    Unsigned(Option<IntBitSize>),
-    Signed(Option<IntBitSize>),
-    Float(Option<FloatBitSize>),
+    Unsigned(Option<IntBits>),
+    Signed(Option<IntBits>),
+    Float(Option<FloatBits>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

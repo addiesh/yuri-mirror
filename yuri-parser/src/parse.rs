@@ -99,22 +99,23 @@
 //!     | expression
 //! };
 
-use crate::error::ParseTry;
-use crate::item::{Attribute, OuterDeclaration};
-use crate::{Ident, Keyword, ParseError, ParseStorage, Qpath, TokenF};
 use smallvec::SmallVec;
 use thin_vec::ThinVec;
 use yuri_lexer::{Token, TokenKind};
 
+use crate::error::ParseTry;
+use crate::{Ast, Ident, ParseError, ParseStorage, Qpath, TokenF};
+
 mod expression;
+mod item;
 #[cfg(test)]
 mod test;
 
-pub(crate) fn parse_all<'src>(
+pub fn parse_all<'src>(
     storage: &mut ParseStorage<'src>,
     source: &'src str,
     tokens: &'src [Token],
-) -> Result<Vec<OuterDeclaration>, ParseError> {
+) -> Result<Ast, ParseError> {
     let mut state = ParseState {
         storage,
         source,
@@ -165,9 +166,13 @@ impl<'src> ParseState<'src, '_> {
         &self.source[start..end]
     }
 
+    pub fn str_to_ident<'a: 'src>(&mut self, str: &'a str) -> Ident {
+        self.storage.to_ident(str)
+    }
+
     pub fn token_to_ident(&mut self, token: TokenF) -> Ident {
         debug_assert_eq!(token.kind, TokenKind::Ident);
-        self.storage.create_ident(self.str_from_token(token))
+        self.storage.to_ident(self.str_from_token(token))
     }
 
     fn peek(&self) -> Option<TokenF> {
@@ -279,54 +284,6 @@ impl<'src> ParseState<'src, '_> {
 // all the methods here expect the start of what they consume to be the PEEK cursor's token.
 // TODO: error recovery w/ anchors and whatnot. that blog post was good.
 impl<'src> ParseState<'src, '_> {
-    fn outer_declaration(&mut self) -> Result<OuterDeclaration, ParseError> {
-        let tok = self.peek().eof()?;
-
-        let attributes = if tok.kind == TokenKind::At {
-            self.attributes()?
-        } else {
-            Vec::new()
-        };
-
-        let tok = self.peek().eof()?;
-        let has_export = if tok.kind == TokenKind::Ident {
-            let matches = matches!(self.token_to_ident(tok), Ident::Keyword(Keyword::Export));
-            if matches {
-                self.skip();
-            }
-            matches
-        } else {
-            false
-        };
-
-        match tok.kind {
-            TokenKind::Ident => {
-                let ident = self.token_to_ident(tok);
-                match ident {
-                    Ident::Keyword(Keyword::Fn) => self.function(attributes),
-                    Ident::Keyword(Keyword::Type) => todo!(),
-                    Ident::Keyword(Keyword::Module) => todo!(),
-                    Ident::Keyword(Keyword::Import) => todo!(),
-                    _ => Err(ParseError::UnexpectedToken(tok)),
-                }
-            }
-            // attribute before something else
-            _ => Err(ParseError::UnexpectedToken(tok)),
-        }
-    }
-
-    fn function(&mut self, attributes: Vec<Attribute>) -> Result<OuterDeclaration, ParseError> {
-        todo!()
-    }
-
-    fn alias(&mut self) -> Result<OuterDeclaration, ParseError> {
-        todo!()
-    }
-
-    fn attributes(&mut self) -> Result<Vec<Attribute>, ParseError> {
-        todo!()
-    }
-
     /// Jumps to the next token, consuming a qualified path (a dot-separated identifier).
     /// On success, leaves the peek cursor on the next unrecognized token.
     fn qpath(&mut self) -> Result<Qpath, ParseError> {

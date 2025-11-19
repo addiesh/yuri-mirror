@@ -1,10 +1,13 @@
-use std::sync::Weak;
+use yuri_common::{DimensionCount, FloatBits, IntBits, ScalarTy};
 
+use crate::Ywk;
+use crate::attribute::Attribute;
+use crate::error::{ResolutionError, TypeError};
 use crate::item::TypeAliasItem;
+use crate::resolution::Resolution;
 use crate::types::array::ArrayType;
-use crate::types::compound::CompoundType;
+use crate::types::compound::{CompoundType, CompoundTypeField};
 use crate::types::primitive::Primitive;
-use crate::{CompileError, Resolution};
 
 pub mod array;
 pub mod compound;
@@ -44,7 +47,7 @@ pub trait Typeable<'a>: Sized + 'a {
     /// - `(_, _) => Err`
     ///   - Two completely unrelated types cannot fit into each other because
     ///     Yuri has no runtime types, sum types, or inheritance.
-    fn intersect_with(&self, other: &Self) -> Result<Self, CompileError<'a>>;
+    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError<'a>>;
 
     /// Attempt to find the most specific supertype of both `self` and `other`. This function must be commutative.
     /// # Union Rules
@@ -59,28 +62,58 @@ pub trait Typeable<'a>: Sized + 'a {
     ///   - Unreachable types cannot exist, so they are essentially removed from the equation leaving only the other type provided.
     /// - `(_, _) => Err`
     ///   - Two completely unrelated types cannot fit into each other.
-    fn union(this: &Self, other: &Self) -> Result<Self, CompileError<'a>>;
+    fn union(this: &Self, other: &Self) -> Result<Self, TypeError<'a>>;
 
     fn is_resolved(&self) -> bool;
-    // TODO: implement meaningful signature here. we need some context and some
-    fn try_resolve(&self) -> Result<Self, CompileError<'a>>;
 }
 
 /// To the Yuri compiler, all "values" are actually types.
 /// Whenver you would store a *value* in the Yuri AST, you store a type.
 /// Whenever you would store a *type annotation* in the Yuri AST, you store a type.
 #[derive(Clone, Debug, PartialEq)]
-pub enum TypeValue<'a> {
+pub enum TypeValue<'src> {
     Primitive(Primitive),
-    Array(Box<ArrayType<'a>>),
-    Compound(Box<CompoundType<'a>>),
+    Array(Box<ArrayType<'src>>),
+    Compound(Box<CompoundType<'src>>),
     /// Resolves to another type
-    Alias(Resolution<'a, Weak<TypeAliasItem<'a>>>),
+    Alias(Resolution<Ywk<TypeAliasItem<'src>>>),
     /// A value that cannot exist. Anything after an expression with this type will be ignored.
     Unreachable,
 }
 
-impl<'a> Typeable<'a> for TypeValue<'a> {
+impl<'src> From<&yuri_parser::types::WrittenTy> for TypeValue<'src> {
+    fn from(value: &yuri_parser::types::WrittenTy) -> Self {
+        use yuri_parser::types::WrittenTy;
+        match value {
+            WrittenTy::Bool => TypeValue::Primitive(Primitive::Bool(None)),
+            WrittenTy::Scalar(scalar_ty) => todo!(),
+            WrittenTy::Vector(vector_ty) => todo!(),
+            WrittenTy::Matrix(matrix_ty) => todo!(),
+            WrittenTy::Array(array_ty) => todo!(),
+            WrittenTy::Compound(compound_ty) => TypeValue::Compound(Box::new(CompoundType {
+                fields: compound_ty
+                    .fields
+                    .iter()
+                    .map(|field| CompoundTypeField {
+                        name: field.name,
+                        attributes: field
+                            .attributes
+                            .iter()
+                            .map(|attrib| Attribute {
+                                path: Resolution::Unresolved(attrib.path.clone()),
+                                _todo_params: Default::default(),
+                            })
+                            .collect(),
+                        field_type: Into::into(&field.field_ty),
+                    })
+                    .collect(),
+            })),
+            WrittenTy::Alias(qpath) => TypeValue::Alias(Resolution::Unresolved(qpath.clone())),
+        }
+    }
+}
+
+impl<'src> Typeable<'src> for TypeValue<'src> {
     fn is_resolved(&self) -> bool {
         match self {
             TypeValue::Primitive(_) | TypeValue::Unreachable => true,
@@ -94,20 +127,7 @@ impl<'a> Typeable<'a> for TypeValue<'a> {
         }
     }
 
-    fn try_resolve(&self) -> Result<Self, CompileError<'a>> {
-        match self {
-            TypeValue::Alias(resolution) => todo!("use context"),
-
-            TypeValue::Primitive(x) => Ok(TypeValue::Primitive(x.clone())),
-            TypeValue::Array(array) => Ok(TypeValue::Array(array.try_resolve()?.into())),
-            TypeValue::Compound(compound) => {
-                Ok(TypeValue::Compound(compound.try_resolve()?.into()))
-            }
-            TypeValue::Unreachable => Ok(TypeValue::Unreachable),
-        }
-    }
-
-    fn intersect_with(&self, other: &Self) -> Result<Self, CompileError<'a>> {
+    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError<'src>> {
         use TypeValue::*;
         match (self, other) {
             (Primitive(a), Primitive(b)) => a.intersect_with(b).map(Primitive),
@@ -117,38 +137,38 @@ impl<'a> Typeable<'a> for TypeValue<'a> {
 
             // unresolved alias
             (Alias(Resolution::Unresolved(l0)), Alias(Resolution::Unresolved(r0))) => {
-                Err(CompileError::Multiple(vec![
-                    CompileError::Unresolved(l0.clone()),
-                    CompileError::Unresolved(r0.clone()),
+                Err(TypeError::Multiple(vec![
+                    TypeError::Unresolved(ResolutionError(l0.clone())),
+                    TypeError::Unresolved(ResolutionError(r0.clone())),
                 ]))
             }
 
             (Alias(Resolution::Unresolved(item_path)), _)
             | (_, Alias(Resolution::Unresolved(item_path))) => {
-                Err(CompileError::Unresolved(item_path.clone()))
+                Err(TypeError::Unresolved(ResolutionError(item_path.clone())))
             }
 
             (Alias(Resolution::Resolved { item_path, item }), other) => {
                 if let Some(this) = item.upgrade() {
-                    this.aliases.intersect_with(other)
+                    this.lock().unwrap().aliases.intersect_with(other)
                 } else {
-                    Err(CompileError::Unresolved(item_path.clone()))
+                    Err(TypeError::Unresolved(ResolutionError(item_path.clone())))
                 }
             }
 
             (this, Alias(Resolution::Resolved { item_path, item })) => {
                 if let Some(upgraded) = item.upgrade() {
-                    this.intersect_with(&upgraded.aliases)
+                    this.intersect_with(&upgraded.lock().unwrap().aliases)
                 } else {
-                    Err(CompileError::Unresolved(item_path.clone()))
+                    Err(TypeError::Unresolved(ResolutionError(item_path.clone())))
                 }
             }
 
-            _ => Err(CompileError::UnrelatedType(self.clone(), other.clone())),
+            _ => Err(TypeError::UnrelatedType(self.clone(), other.clone())),
         }
     }
 
-    fn union(this: &Self, other: &Self) -> Result<Self, CompileError<'a>> {
+    fn union(this: &Self, other: &Self) -> Result<Self, TypeError<'src>> {
         use crate::types;
         use TypeValue::*;
         match (this, other) {
@@ -159,7 +179,10 @@ impl<'a> Typeable<'a> for TypeValue<'a> {
 
             // This shortcut works because unions are commutative.
             (Alias(alias), x) | (x, Alias(alias)) => {
-                let aliases = &alias.try_upgrade()?.aliases;
+                let aliases = alias.try_upgrade()?;
+                let aliases = aliases.lock().unwrap();
+                let aliases = &aliases.aliases;
+
                 let result = TypeValue::union(x, aliases);
                 // validate commutativity
                 #[cfg(debug_assertions)]
@@ -177,7 +200,7 @@ impl<'a> Typeable<'a> for TypeValue<'a> {
                 result
             }
 
-            _ => Err(CompileError::UnrelatedType(this.clone(), other.clone())),
+            _ => Err(TypeError::UnrelatedType(this.clone(), other.clone())),
         }
     }
 }

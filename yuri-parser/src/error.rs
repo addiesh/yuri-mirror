@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Display};
+
 use yuri_lexer::TokenKind;
 
 use crate::TokenF;

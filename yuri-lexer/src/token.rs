@@ -24,7 +24,21 @@ pub enum TokenKind {
     /// The newline character.
     Newline,
 
-    /// An identifier or keyword, e.g. `ident` or `continue`.
+    // TODO: decide if we should treat certain keywords as tokens
+    // specific keyword tokens.
+    // KwLet,
+    // KwFn,
+    // KwExport,
+    // KwImport,
+    // KwType,
+    // KwModule,
+    // KwReturn,
+    // KwAnd,
+    // KwXor,
+    // KwOr,
+    // KwIf,
+    // An identifier, including some (but not all) keywords
+    /// An identifier or keyword, e.g. `my_variable` or `continue`.
     Ident,
 
     /// A *valid* literal.

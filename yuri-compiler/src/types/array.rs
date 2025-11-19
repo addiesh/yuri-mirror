@@ -1,4 +1,4 @@
-use crate::CompileError;
+use crate::error::{CompileError, TypeError};
 use crate::types::{TypeValue, Typeable};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -60,19 +60,15 @@ impl<'a> ArrayType<'a> {
 }
 
 impl<'a> Typeable<'a> for ArrayType<'a> {
-    fn intersect_with(&self, other: &Self) -> Result<Self, CompileError<'a>> {
+    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError<'a>> {
         todo!()
     }
 
-    fn union(this: &Self, other: &Self) -> Result<Self, CompileError<'a>> {
+    fn union(this: &Self, other: &Self) -> Result<Self, TypeError<'a>> {
         todo!()
     }
 
     fn is_resolved(&self) -> bool {
-        todo!()
-    }
-
-    fn try_resolve(&self) -> Result<Self, CompileError<'a>> {
         todo!()
     }
 }

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["yuri", "yuri-lexer", "yuri-parser", "yuri-compiler", "yuri-cli"]
+members = ["yuri", "yuri-lexer", "yuri-parser", "yuri-compiler", "yuri-cli", "yuri-common"]
 default-members = ["yuri", "yuri-lexer", "yuri-parser", "yuri-compiler", "yuri-cli"]
 
 [workspace.dependencies]

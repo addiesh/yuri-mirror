@@ -1,36 +1,65 @@
-use std::borrow::Cow;
-use std::sync::{Arc, Weak};
+use yuri_common::{BinaryOperator, UnaryOperator};
+use yuri_parser::{Ident, Qpath};
 
+use crate::error::CompileError;
+use crate::resolution::Resolution;
+use crate::scope::Scope;
 use crate::types::TypeValue;
-use crate::types::primitive::Primitive;
-use crate::{CompileError, FunctionItem, Resolution, Scope, TypeAliasItem, VariableItem};
+use crate::types::primitive::{Primitive, ScalarTyVal};
+use crate::{FunctionItem, TypeAliasItem, VariableItem, Yrc, Ywk};
 
 mod sealed {
-    use crate::{CompileError, TypeValue};
+    use crate::TypeValue;
+    use crate::error::CompileError;
 
-    pub trait ExpressionTrait<'a> {
-        fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>>;
+    pub trait ExpressionTrait<'src> {
+        fn try_get_typeval(&self) -> Result<TypeValue<'src>, CompileError<'src>>;
     }
 }
 
 /// Local block element.
-pub enum BlockStatement<'a> {
-    Variable(Weak<VariableItem<'a>>),
-    TypeAlias(Weak<TypeAliasItem<'a>>),
-    Function(Weak<FunctionItem<'a>>),
-    Return(Expression<'a>),
-    // Tail(Expression<'a>),
+pub enum BlockStatement<'src> {
+    Import(Qpath),
+    Variable(Ywk<VariableItem<'src>>),
+    TypeAlias(Ywk<TypeAliasItem<'src>>),
+    Function(Ywk<FunctionItem<'src>>),
+    Return(Expression<'src>),
+    Expression(Expression<'src>),
 }
 
-pub struct BlockExpression<'a> {
+pub struct BlockExpression<'src> {
     /// The scope that this block creates.
-    pub scope: Arc<Scope<'a>>,
-    pub statements: Vec<BlockStatement<'a>>,
-    pub tail: Option<Box<Expression<'a>>>,
+    pub scope: Yrc<Scope<'src>>,
+    pub statements: Vec<BlockStatement<'src>>,
 }
 
-impl<'a> sealed::ExpressionTrait<'a> for BlockExpression<'a> {
-    fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>> {
+impl<'src> From<&yuri_parser::expression::BlockExpression> for BlockExpression<'src> {
+    fn from(value: &yuri_parser::expression::BlockExpression) -> Self {
+        let scope = Yrc::new(Scope::new().into());
+
+        BlockExpression {
+            scope,
+            statements: value
+                .statements
+                .iter()
+                .map(|stmt| {
+                    use yuri_parser::expression::BlockStatement;
+                    match stmt {
+                        BlockStatement::LocalVariable(variable_item) => todo!(),
+                        BlockStatement::TypeAlias(type_alias_item) => todo!(),
+                        BlockStatement::Function(function_item) => todo!(),
+                        BlockStatement::Return(expression) => todo!(),
+                        BlockStatement::Import(ident) => todo!(),
+                        BlockStatement::Value(expression) => todo!(),
+                    }
+                })
+                .collect(),
+        }
+    }
+}
+
+impl<'src> sealed::ExpressionTrait<'src> for BlockExpression<'src> {
+    fn try_get_typeval(&self) -> Result<TypeValue<'src>, CompileError<'src>> {
         // figure out if the expression is unreachable
 
         // if let Some(tail) = &self.tail {
@@ -59,71 +88,15 @@ pub struct ElseChain<'a> {
     pub chained_else: Option<Box<ElseChain<'a>>>,
 }
 
-pub enum UnaryOperator {
-    // ~
-    BitwiseNot,
-    // !
-    LogicalNot,
-    // -
-    Negative,
-    // +
-    Positive,
+pub struct UnaryExpression<'src> {
+    pub operator: UnaryOperator,
+    pub value: Box<Expression<'src>>,
 }
 
-pub struct UnaryExpression<'a> {
-    operator: UnaryOperator,
-    value: Box<Expression<'a>>,
-}
-
-impl<'a> sealed::ExpressionTrait<'a> for UnaryExpression<'a> {
-    fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>> {
+impl<'src> sealed::ExpressionTrait<'src> for UnaryExpression<'src> {
+    fn try_get_typeval(&self) -> Result<TypeValue<'src>, CompileError<'src>> {
         todo!()
     }
-}
-
-pub enum BinaryOperator {
-    // "and"
-    LogicAnd,
-    // "or"
-    LogicOr,
-    // "xor"
-    LogicXor,
-
-    // &
-    BitAnd,
-    // |
-    BitOr,
-    // ^
-    BitXor,
-
-    // ==
-    Eq,
-    // !=
-    NotEq,
-    // <
-    Lt,
-    // <=
-    LtEq,
-    // >
-    Gr,
-    // >=
-    GrEq,
-    // <<
-    ShiftLeft,
-    // >>
-    ShiftRight,
-    // +
-    Add,
-    // -
-    Subtract,
-    // *
-    Multiply,
-    // **
-    Exponent,
-    // /
-    Divide,
-    // %
-    Remainder,
 }
 
 pub struct BinaryExpression<'a> {
@@ -139,7 +112,7 @@ impl<'a> sealed::ExpressionTrait<'a> for BinaryExpression<'a> {
 }
 
 pub struct CallExpression<'a> {
-    pub function: Resolution<'a, Weak<FunctionItem<'a>>>,
+    pub function: Resolution<Ywk<FunctionItem<'a>>>,
     pub arguments: Vec<Expression<'a>>,
 }
 
@@ -169,7 +142,7 @@ pub struct CompoundExpression<'a> {
 }
 
 pub struct CompoundExpressionField<'a> {
-    pub target_field: Cow<'a, str>,
+    pub target_field: Ident,
     pub expression: Expression<'a>,
 }
 
@@ -179,7 +152,7 @@ impl<'a> sealed::ExpressionTrait<'a> for CompoundExpression<'a> {
     }
 }
 
-impl<'a> sealed::ExpressionTrait<'a> for Resolution<'a, Weak<VariableItem<'a>>> {
+impl<'a> sealed::ExpressionTrait<'a> for Resolution<Ywk<VariableItem<'a>>> {
     fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>> {
         todo!()
     }
@@ -188,26 +161,31 @@ impl<'a> sealed::ExpressionTrait<'a> for Resolution<'a, Weak<VariableItem<'a>>> 
 pub enum LiteralExpression {
     Bool(bool),
     /// A numeric literal with an explicit decimal point
-    Decimal(f32),
-    /// An integer with no sign or decimal point.
-    Integer(u32),
+    Decimal(f64),
+    /// An integer with no sign, decimal point, or fancy notation.
+    Integer(u64),
+
+    /// idk figure this out
+    UnsignReqInt(u64),
     /// An integer with an explicitly specified sign.
-    SignedInt(i32),
+    SignReqInt(i64),
 }
 
 impl<'a> sealed::ExpressionTrait<'a> for LiteralExpression {
     fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>> {
-        Ok(match self {
-            LiteralExpression::Bool(b) => TypeValue::Primitive(Primitive::Bool(Some(*b))),
-            LiteralExpression::Decimal(d) => TypeValue::Primitive(Primitive::Float1(Some(*d))),
-            LiteralExpression::Integer(i) => TypeValue::Primitive(Primitive::AmbiguousInteger(*i)),
-            LiteralExpression::SignedInt(s) => TypeValue::Primitive(Primitive::Signed1(Some(*s))),
-        })
+        use ScalarTyVal as Scalar;
+        Ok(TypeValue::Primitive(match self {
+            LiteralExpression::Bool(b) => Primitive::Bool(Some(*b)),
+            LiteralExpression::Decimal(d) => Primitive::Scalar(Scalar::FloatX(Some(*d))),
+            LiteralExpression::Integer(i) => Primitive::Scalar(Scalar::UnsignedX(Some(*i))),
+            LiteralExpression::UnsignReqInt(u) => Primitive::Scalar(Scalar::UnsignedX(Some(*u))),
+            LiteralExpression::SignReqInt(s) => Primitive::Scalar(Scalar::SignedX(Some(*s))),
+        }))
     }
 }
 
 pub enum Expression<'a> {
-    Variable(Resolution<'a, Weak<VariableItem<'a>>>),
+    Variable(Resolution<Ywk<VariableItem<'a>>>),
     Literal(LiteralExpression),
     Unary(UnaryExpression<'a>),
     Binary(BinaryExpression<'a>),
@@ -217,6 +195,36 @@ pub enum Expression<'a> {
     CompoundInit(CompoundExpression<'a>),
     Block(BlockExpression<'a>),
     Paren(Box<Expression<'a>>),
+    Unimplemented,
+    Invalid,
+}
+
+impl<'src> From<&yuri_parser::expression::Expression> for Expression<'src> {
+    fn from(value: &yuri_parser::expression::Expression) -> Self {
+        use yuri_parser::expression::Expression as Exp;
+        use yuri_parser::expression::LiteralExpression as Lit;
+        match value {
+            Exp::Variable(qpath) => Expression::Variable(Resolution::Unresolved(qpath.clone())),
+            Exp::Literal(lit) => Expression::Literal(match lit {
+                Lit::Bool(b) => LiteralExpression::Bool(*b),
+                Lit::Decimal(d) => LiteralExpression::Decimal(*d),
+                // TODO: this sucks, held up by deciding how to represent numbers elsewhere
+                Lit::Number(i) | Lit::Integer(i) => LiteralExpression::Integer(*i as _),
+            }),
+            Exp::Unary(unary) => Expression::Unary(UnaryExpression {
+                operator: todo!(),
+                value: todo!(),
+            }),
+            Exp::Binary(binary) => todo!(),
+            Exp::Array(array) => todo!(),
+            Exp::IfExpr(riffx) => todo!(),
+            Exp::FunctionalCall(call) => todo!(),
+            Exp::CompoundInit(compound) => todo!(),
+            Exp::Block(expr) => Expression::Block(expr.into()),
+            Exp::Paren(expression) => todo!(),
+            Exp::Unimplemented => Expression::Unimplemented,
+        }
+    }
 }
 
 impl<'a> sealed::ExpressionTrait<'a> for Expression<'a> {
@@ -232,6 +240,8 @@ impl<'a> sealed::ExpressionTrait<'a> for Expression<'a> {
             Expression::CompoundInit(e) => e.try_get_typeval(),
             Expression::Block(e) => e.try_get_typeval(),
             Expression::Paren(e) => e.try_get_typeval(),
+            Expression::Unimplemented => todo!("implement type"),
+            Expression::Invalid => panic!("invalid type propagated too far"),
         }
     }
 }

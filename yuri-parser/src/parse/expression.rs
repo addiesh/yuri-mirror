@@ -1,13 +1,17 @@
-use crate::error::ParseTry;
-use crate::expression::{
-    BinaryExpression, BinaryOperator, CallExpression, Expression, LiteralExpression,
-    UnaryExpression, UnaryOperator,
-};
-use crate::parse::ParseState;
-use crate::{Ident, Keyword, ParseError};
+use std::f64;
+
 use smallvec::SmallVec;
+use thin_vec::thin_vec;
+use yuri_common::{BinaryOperator, UnaryOperator};
 use yuri_lexer::TokenKind;
 use yuri_lexer::token::{Base, LiteralKind};
+
+use crate::error::ParseTry;
+use crate::expression::{
+    BinaryExpression, CallExpression, Expression, LiteralExpression, UnaryExpression,
+};
+use crate::parse::ParseState;
+use crate::{Ident, Keyword, ParseError, Qpath};
 
 /// Define a function to consume a left-associative binary expression.
 /// I don't particularly like macros in Rust, but this felt like a reasonable use case.
@@ -19,7 +23,9 @@ macro_rules! lass_bin_take {
             loop {
                 self.take_whitespace();
 
-                let Some(operator) = (($body)(self))? else {
+                let fun: fn(this: &mut Self) -> Result<Option<BinaryOperator>, ParseError> = $body;
+
+                let Some(operator) = (fun(self))? else {
                     println!(concat!("didn't take ", stringify!($this)));
                     break;
                 };
@@ -44,7 +50,7 @@ impl<'src> ParseState<'src, '_> {
         self.expr_logic_or()
     }
 
-    lass_bin_take!(expr_logic_or, expr_logic_xor, |this: &mut ParseState| {
+    lass_bin_take!(expr_logic_or, expr_logic_xor, |this| {
         let Some(tok) = this.peek() else {
             return Ok(None);
         };
@@ -58,7 +64,7 @@ impl<'src> ParseState<'src, '_> {
         Ok(None)
     });
 
-    lass_bin_take!(expr_logic_xor, expr_logic_and, |this: &mut ParseState| {
+    lass_bin_take!(expr_logic_xor, expr_logic_and, |this| {
         let Some(tok) = this.peek() else {
             return Ok(None);
         };
@@ -72,7 +78,7 @@ impl<'src> ParseState<'src, '_> {
         Ok(None)
     });
 
-    lass_bin_take!(expr_logic_and, expr_compare, |this: &mut ParseState| {
+    lass_bin_take!(expr_logic_and, expr_compare, |this| {
         let Some(tok) = this.peek() else {
             return Ok(None);
         };
@@ -115,39 +121,35 @@ impl<'src> ParseState<'src, '_> {
         Ok(expr)
     }
 
-    lass_bin_take!(expr_bit_or, expr_bit_xor, |this: &mut ParseState| Ok(this
+    lass_bin_take!(expr_bit_or, expr_bit_xor, |this| Ok(this
         .take_seq(&[TokenKind::Pipe])
         .then_some(BinaryOperator::BitOr)));
 
-    lass_bin_take!(expr_bit_xor, expr_bit_and, |this: &mut ParseState| Ok(this
+    lass_bin_take!(expr_bit_xor, expr_bit_and, |this| Ok(this
         .take_seq(&[TokenKind::Caret])
         .then_some(BinaryOperator::BitXor)));
 
-    lass_bin_take!(expr_bit_and, expr_shift, |this: &mut ParseState| Ok(this
+    lass_bin_take!(expr_bit_and, expr_shift, |this| Ok(this
         .take_seq(&[TokenKind::Amp])
         .then_some(BinaryOperator::BitAnd)));
 
-    lass_bin_take!(expr_shift, expr_sum, |this: &mut ParseState| Ok(this
-        .switch_seq(&[
-            (BinaryOperator::ShiftLeft, &[TokenKind::Lt, TokenKind::Lt]),
-            (BinaryOperator::ShiftRight, &[TokenKind::Gt, TokenKind::Gt]),
-        ])));
+    lass_bin_take!(expr_shift, expr_sum, |this| Ok(this.switch_seq(&[
+        (BinaryOperator::ShiftLeft, &[TokenKind::Lt, TokenKind::Lt]),
+        (BinaryOperator::ShiftRight, &[TokenKind::Gt, TokenKind::Gt]),
+    ])));
 
-    lass_bin_take!(expr_sum, expr_product, |this: &mut ParseState| Ok(this
-        .switch_seq(&[
-            (BinaryOperator::Add, &[TokenKind::Plus]),
-            (BinaryOperator::Sub, &[TokenKind::Minus]),
-        ])));
+    lass_bin_take!(expr_sum, expr_product, |this| Ok(this.switch_seq(&[
+        (BinaryOperator::Add, &[TokenKind::Plus]),
+        (BinaryOperator::Sub, &[TokenKind::Minus]),
+    ])));
 
-    lass_bin_take!(expr_product, expr_exponent, |this: &mut ParseState| Ok(
-        this.switch_seq(&[
-            (BinaryOperator::Multiply, &[TokenKind::Star]),
-            (BinaryOperator::Divide, &[TokenKind::Slash]),
-            (BinaryOperator::Remainder, &[TokenKind::Percent]),
-        ])
-    ));
+    lass_bin_take!(expr_product, expr_exponent, |this| Ok(this.switch_seq(&[
+        (BinaryOperator::Multiply, &[TokenKind::Star]),
+        (BinaryOperator::Divide, &[TokenKind::Slash]),
+        (BinaryOperator::Remainder, &[TokenKind::Percent]),
+    ])));
 
-    lass_bin_take!(expr_exponent, expr_unary, |this: &mut ParseState| Ok(this
+    lass_bin_take!(expr_exponent, expr_unary, |this| Ok(this
         .take_seq(&[TokenKind::DoubleStar])
         .then_some(BinaryOperator::Exponent)));
 
@@ -217,8 +219,28 @@ impl<'src> ParseState<'src, '_> {
             // 2. a variable
             // 3. true/false/nan/infinity/etc.
             TokenKind::Ident => {
-                println!("if/loop/variable expression: {tok:?}");
-                Ok(Expression::Unimplemented)
+                use LiteralExpression as LitExp;
+                println!("TODO if/loop/variable expression: {tok:?}");
+                let ident = self.token_to_ident(tok);
+                Ok(match ident {
+                    Ident::Id(_) => Expression::Variable(Qpath(thin_vec![ident])),
+                    Ident::Keyword(Keyword::If) => Expression::Unimplemented,
+                    Ident::Keyword(Keyword::True | Keyword::False) => Expression::Unimplemented,
+                    Ident::Keyword(Keyword::NaN) => LitExp::Decimal(f64::NAN).into(),
+                    Ident::Keyword(Keyword::Inf) => LitExp::Decimal(f64::INFINITY).into(),
+                    Ident::Keyword(
+                        Keyword::Loop
+                        | Keyword::Filter
+                        | Keyword::Flatten
+                        | Keyword::Fold
+                        | Keyword::Reverse
+                        | Keyword::Append
+                        | Keyword::Prepend
+                        | Keyword::Join
+                        | Keyword::Map,
+                    ) => Expression::Unimplemented,
+                    Ident::Keyword(_) => return Err(ParseError::UnexpectedToken(tok)),
+                })
             }
             // number
             TokenKind::Literal(literal_kind) => {

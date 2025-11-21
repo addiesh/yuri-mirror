@@ -34,19 +34,17 @@ fn cli() -> clap::Command {
 // yuri
 
 fn compile(source_files: &[String]) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
-    let mut yuri_ctx = yuri::YuriContext::new(source_files.len());
-
     let source_files = source_files
         .into_par_iter()
         .map(|fname| fs::read_to_string(fname).map(|code| (fname, code)))
         .collect::<Result<Box<[(&String, String)]>, _>>()?;
 
     {
-        let x = source_files
+        let _x = source_files
             .iter()
             .map(|(fname, code)| {
                 // yuri_ctx.parse_module(fname, &code)
-                yuri::_test_compile(&fname, code.as_ref())
+                yuri::_test_compile(fname, code.as_ref())
             })
             .collect::<Result<Box<[_]>, _>>()
             .unwrap();

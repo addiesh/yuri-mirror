@@ -20,7 +20,7 @@ pub struct VariableItem {
     pub name: Ident,
     /// The target type of this variable, as specified by the programmer.
     pub written_ty: Option<WrittenTy>,
-    pub value: Expression,
+    pub value: Box<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,9 +42,10 @@ pub struct FunctionItem {
 }
 
 pub enum OuterDeclaration {
-    GlobalVariable(VariableItem),
-    Function(FunctionItem),
-    Alias(TypeAliasItem),
+    Submodule(Box<ModuleItem>),
+    GlobalVariable(Box<VariableItem>),
+    Function(Box<FunctionItem>),
+    Alias(Box<TypeAliasItem>),
     Import(Ident),
 }
 

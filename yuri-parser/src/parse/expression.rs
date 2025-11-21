@@ -30,13 +30,15 @@ macro_rules! lass_bin_take {
                     break;
                 };
 
+                println!(concat!("! took ", stringify!($this)));
+
                 self.take_whitespace();
 
                 let right = self.$this()?;
                 expr = Expression::Binary(BinaryExpression {
                     operator,
-                    left: Box::new(expr),
-                    right: Box::new(right),
+                    lhs: Box::new(expr),
+                    rhs: Box::new(right),
                 });
             }
 
@@ -46,6 +48,7 @@ macro_rules! lass_bin_take {
 }
 
 impl<'src> ParseState<'src, '_> {
+    #[inline]
     pub fn expression(&mut self) -> Result<Expression, ParseError> {
         self.expr_logic_or()
     }
@@ -114,8 +117,8 @@ impl<'src> ParseState<'src, '_> {
         let right = self.expr_compare()?;
         expr = Expression::Binary(BinaryExpression {
             operator,
-            left: Box::new(expr),
-            right: Box::new(right),
+            lhs: Box::new(expr),
+            rhs: Box::new(right),
         });
 
         Ok(expr)
@@ -205,13 +208,14 @@ impl<'src> ParseState<'src, '_> {
 
     // aka. field
     pub fn expr_path(&mut self) -> Result<Expression, ParseError> {
-        println!("TODO: implement path/field expression");
-        self.expr_maxprec()
+        // println!("TODO: implement path/field expression");
+        let res = self.expr_maxprec();
+        println!("maxprec token: {res:?}");
+        res
     }
 
     pub fn expr_maxprec(&mut self) -> Result<Expression, ParseError> {
         let tok = self.take().eof()?;
-        self.take_whitespace();
 
         match tok.kind {
             // either:
@@ -222,6 +226,7 @@ impl<'src> ParseState<'src, '_> {
                 use LiteralExpression as LitExp;
                 println!("TODO if/loop/variable expression: {tok:?}");
                 let ident = self.token_to_ident(tok);
+                self.take_whitespace();
                 Ok(match ident {
                     Ident::Id(_) => Expression::Variable(Qpath(thin_vec![ident])),
                     Ident::Keyword(Keyword::If) => Expression::Unimplemented,

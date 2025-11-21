@@ -56,7 +56,7 @@ pub enum Primitive {
     Matrix(MatrixTyVal),
 }
 
-fn primitive_union<'a>(this: &Primitive, other: &Primitive) -> Result<Primitive, TypeError<'a>> {
+fn primitive_union(this: &Primitive, other: &Primitive) -> Result<Primitive, TypeError> {
     use Primitive::*;
     // TODO: technically the equality here has errors because of floating-point NaN.
     // fix if it becomes an issue.
@@ -98,9 +98,9 @@ fn primitive_union<'a>(this: &Primitive, other: &Primitive) -> Result<Primitive,
     })
 }
 
-impl<'a> Typeable<'a> for Primitive {
+impl Typeable for Primitive {
     #[rustfmt::skip]
-    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError<'a>> {
+    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError> {
         use Primitive::*;
         // macros can't expand to match arms
         match (self, other) {
@@ -154,7 +154,7 @@ impl<'a> Typeable<'a> for Primitive {
         }
     }
 
-    fn union(this: &Self, other: &Self) -> Result<Self, TypeError<'a>> {
+    fn union(this: &Self, other: &Self) -> Result<Self, TypeError> {
         let result = primitive_union(this, other);
 
         // validate commutativity

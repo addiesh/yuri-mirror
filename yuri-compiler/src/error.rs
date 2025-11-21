@@ -11,35 +11,35 @@ pub struct ResolutionError(pub Qpath);
 
 // TODO: improve error reporting
 #[derive(Debug)]
-pub enum TypeError<'a> {
-    Multiple(Vec<TypeError<'a>>),
+pub enum TypeError {
+    Multiple(Vec<TypeError>),
     /// We can't check whether the two values can be equal because we don't know what one of them actually is.
     Unresolved(ResolutionError),
     /// The typeval is valid at a Rust type level, but not at a Yuri behavior level.
     /// This includes arrays with values that don't match their annotations
-    SemanticallyInvalid(TypeValue<'a>),
+    SemanticallyInvalid(TypeValue),
     /// The two values are 100% known but are not equal themselves.
-    ConcreteInequality(TypeValue<'a>, TypeValue<'a>),
+    ConcreteInequality(TypeValue, TypeValue),
     /// A is a subtype of B but not vice-versa.
     /// You cannot cast from an unknown value to a concrete one.
-    UnknownSubtype(TypeValue<'a>, TypeValue<'a>),
+    UnknownSubtype(TypeValue, TypeValue),
     /// A conversion that doesn't make sense, like Primitive to Compound.
     /// Types A and B are categorically separate; no type-level conversion exists from A to B
-    UnrelatedType(TypeValue<'a>, TypeValue<'a>),
+    UnrelatedType(TypeValue, TypeValue),
     IncompatibleArrayLength(Option<u32>, u32),
     /// Two compound types with two different counts of fields cannot be cast to one another ({l1} != {l2})
     IncompatibleFieldCount(u32, u32),
     /// The provided integer (originating from a literal) is out of bounds for the target type.
-    IntegerBounds(i64, TypeValue<'a>),
-    IntegerAsFloat(TypeValue<'a>, TypeValue<'a>),
+    IntegerBounds(i64, TypeValue),
+    IntegerAsFloat(TypeValue, TypeValue),
 }
 
-impl<'a> From<ResolutionError> for TypeError<'a> {
+impl From<ResolutionError> for TypeError {
     fn from(value: ResolutionError) -> Self {
         Self::Unresolved(value)
     }
 }
-impl<'a> From<ResolutionError> for CompileError<'a> {
+impl<'src> From<ResolutionError> for CompileError<'src> {
     fn from(value: ResolutionError) -> Self {
         Self::Unresolved(value)
     }
@@ -47,12 +47,18 @@ impl<'a> From<ResolutionError> for CompileError<'a> {
 
 // TODO: improve error reporting
 #[derive(Debug)]
-pub enum CompileError<'a> {
-    Multiple(Vec<CompileError<'a>>),
+pub enum CompileError<'src> {
+    Multiple(Vec<CompileError<'src>>),
     Parse(ParseError),
-    NotOurFault(Box<dyn Error + Send + Sync>),
+    NotMyFault(Box<dyn Error + Send + Sync + 'src>),
     Unresolved(ResolutionError),
-    TypeCheck(Box<TypeError<'a>>),
+    TypeCheck(Box<TypeError>),
+}
+
+impl From<Box<dyn Error + Send + Sync>> for CompileError<'_> {
+    fn from(value: Box<dyn Error + Send + Sync>) -> Self {
+        Self::NotMyFault(value)
+    }
 }
 
 impl<'a> From<ParseError> for CompileError<'a> {
@@ -66,8 +72,8 @@ impl<'a> Clone for CompileError<'a> {
         match self {
             Self::Multiple(arg0) => Self::Multiple(arg0.clone()),
             Self::Parse(arg0) => Self::Parse(arg0.clone()),
-            Self::NotOurFault(arg0) => {
-                Self::NotOurFault(format!("(CLONED MESSAGE): {arg0:?}").into())
+            Self::NotMyFault(arg0) => {
+                Self::NotMyFault(format!("(CLONED MESSAGE): {arg0:?}").into())
             }
             Self::TypeCheck(arg0) => Self::TypeCheck(arg0.clone()),
             Self::Unresolved(arg0) => Self::Unresolved(arg0.clone()),
@@ -75,7 +81,7 @@ impl<'a> Clone for CompileError<'a> {
     }
 }
 
-impl<'a> Clone for TypeError<'a> {
+impl Clone for TypeError {
     fn clone(&self) -> Self {
         match self {
             Self::Multiple(arg0) => Self::Multiple(arg0.clone()),

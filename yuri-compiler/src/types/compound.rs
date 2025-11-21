@@ -6,20 +6,20 @@ use crate::split_results;
 use crate::types::{TypeValue, Typeable};
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct CompoundType<'a> {
-    pub fields: Vec<CompoundTypeField<'a>>,
+pub struct CompoundType {
+    pub fields: Vec<CompoundTypeField>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct CompoundTypeField<'a> {
+pub struct CompoundTypeField {
     // pub parent: Ywk<CompoundType<'a>>,
-    pub attributes: Vec<Attribute<'a>>,
+    pub attributes: Vec<Attribute>,
     pub name: Ident,
-    pub field_type: TypeValue<'a>,
+    pub field_type: TypeValue,
 }
 
-impl<'a> Typeable<'a> for CompoundType<'a> {
-    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError<'a>> {
+impl Typeable for CompoundType {
+    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError> {
         if self.fields.len() != other.fields.len() {
             let l1 = self.fields.len() as u32;
             let l2 = other.fields.len() as u32;
@@ -50,7 +50,7 @@ impl<'a> Typeable<'a> for CompoundType<'a> {
         Ok(CompoundType { fields })
     }
 
-    fn union(this: &Self, other: &Self) -> Result<Self, TypeError<'a>> {
+    fn union(this: &Self, other: &Self) -> Result<Self, TypeError> {
         todo!()
     }
 

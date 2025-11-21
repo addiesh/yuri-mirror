@@ -27,7 +27,7 @@ macro_rules! parse_assert {
                 println!(" - {tok:?}");
             }
 
-            let thing = state.expr_compare().unwrap();
+            let thing = state.expression().unwrap();
             let expected: fn(state: &mut ParseState) -> Expression = $expect;
             assert_eq!(thing, expected(&mut state));
             println!("{thing:?}");
@@ -41,8 +41,8 @@ parse_assert! {
     |state| {
         BinaryExpression {
             operator: BinaryOperator::Eq,
-            left: Expression::Variable(Qpath(thin_vec![state.str_to_ident("x")])).into(),
-            right: Expression::Variable(Qpath(thin_vec![state.str_to_ident("y")])).into(),
+            lhs: Expression::Variable(Qpath(thin_vec![state.str_to_ident("x")])).into(),
+            rhs: Expression::Variable(Qpath(thin_vec![state.str_to_ident("y")])).into(),
         }
         .into()
     }
@@ -54,31 +54,31 @@ parse_assert! {
     |_| {
         BinaryExpression {
             operator: BinaryOperator::LogicOr,
-            left: BinaryExpression {
+            lhs: BinaryExpression {
                 operator: BinaryOperator::Eq,
-                left: BinaryExpression {
+                lhs: BinaryExpression {
                     operator: BinaryOperator::Add,
-                    left: LiteralExpression::Number(1).into(),
-                    right: BinaryExpression {
+                    lhs: LiteralExpression::Number(1).into(),
+                    rhs: BinaryExpression {
                         operator: BinaryOperator::Multiply,
-                        left: LiteralExpression::Number(2).into(),
-                        right: BinaryExpression {
+                        lhs: LiteralExpression::Number(2).into(),
+                        rhs: BinaryExpression {
                             operator: BinaryOperator::Divide,
-                            left: LiteralExpression::Number(3).into(),
-                            right: LiteralExpression::Number(4).into(),
+                            lhs: LiteralExpression::Number(3).into(),
+                            rhs: LiteralExpression::Number(4).into(),
                         }
                         .into(),
                     }
                     .into(),
                 }
                 .into(),
-                right: LiteralExpression::Number(5).into(),
+                rhs: LiteralExpression::Number(5).into(),
             }
             .into(),
-            right: Expression::Binary(BinaryExpression {
+            rhs: Expression::Binary(BinaryExpression {
                 operator: BinaryOperator::NotEq,
-                left: LiteralExpression::Number(6).into(),
-                right: UnaryExpression {
+                lhs: LiteralExpression::Number(6).into(),
+                rhs: UnaryExpression {
                     operator: UnaryOperator::Positive,
                     value: UnaryExpression {
                         operator: UnaryOperator::BitwiseNot,

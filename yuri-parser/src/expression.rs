@@ -75,8 +75,8 @@ pub struct UnaryExpression {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BinaryExpression {
     pub operator: BinaryOperator,
-    pub left: Box<Expression>,
-    pub right: Box<Expression>,
+    pub lhs: Box<Expression>,
+    pub rhs: Box<Expression>,
 }
 
 #[derive(Debug, Clone)]
@@ -91,8 +91,9 @@ pub enum InnerDeclaration {
 pub enum BlockStatement {
     LocalVariable(VariableItem),
     TypeAlias(TypeAliasItem),
-    Function(FunctionItem),
-    Return(Expression),
+    Function(Box<FunctionItem>),
+    Assign(Qpath, Box<Expression>),
+    Return(Box<Expression>),
     Import(Ident),
     Value(Box<Expression>),
 }

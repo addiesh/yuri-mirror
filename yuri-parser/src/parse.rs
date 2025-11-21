@@ -112,8 +112,8 @@ mod item;
 mod test;
 
 pub fn parse_all<'src>(
-    storage: &mut ParseStorage<'src>,
     source: &'src str,
+    storage: &mut ParseStorage,
     tokens: &'src [Token],
 ) -> Result<Ast, ParseError> {
     let mut state = ParseState {
@@ -150,7 +150,7 @@ pub fn parse_all<'src>(
 }
 
 struct ParseState<'src, 'storage> {
-    storage: &'storage mut ParseStorage<'src>,
+    storage: &'storage mut ParseStorage,
     source: &'src str,
     tokens: &'src [yuri_lexer::Token],
     byte_offset: u32,

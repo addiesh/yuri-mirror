@@ -1,40 +1,36 @@
 use std::error::Error;
-use std::marker::PhantomData;
+use std::path::PathBuf;
 
+use yuri_common::to_snake_case;
+use yuri_compiler::Yrc;
 use yuri_compiler::error::CompileError;
+use yuri_compiler::item::Module;
+use yuri_lexer::Token;
 use yuri_parser::ParseStorage;
 
 pub type YuriError = Box<dyn Error + Send + Sync + 'static>;
 
-/// Represents one "compilation context" of Yuri.
-pub struct YuriContext<'a> {
-    _pd: PhantomData<&'a ()>, // modules: Vec<Module<'a>>,
-}
-
-impl<'a> YuriContext<'a> {
-    pub fn new(initial_capacity: usize) -> Self {
-        Self {
-            _pd: Default::default(),
-            // modules: Vec::with_capacity(initial_capacity),
-        }
-    }
-
-    // pub fn parse_module(
-    //     &self,
-    //     name: impl Into<String>,
-    //     code: &str,
-    // ) -> Result<Module<'a>, YuriError> {
-    //     parse::parse_module(name.into(), code)
-    // }
-}
-
-pub fn _test_compile<'a>(fname: &'a str, input: &'a str) -> Result<(), CompileError<'a>> {
-    let tokens: Vec<_> = yuri_lexer::tokenize(input).collect();
+pub fn _test_compile<'src>(
+    file_path: &'src str,
+    source: &'src str,
+) -> Result<Yrc<Module>, CompileError<'src>> {
+    let tokens: Vec<Token> = yuri_lexer::tokenize(source).collect();
     for token in &tokens {
         println!("{token:?}");
     }
     let mut storage = ParseStorage::default();
-    let ast = yuri_parser::parse_all(&mut storage, input, &tokens)?;
-    // let ir = yuri_compiler::compile_
-    Ok(())
+
+    let module_name = to_snake_case(
+        &PathBuf::from(file_path)
+            .file_stem()
+            .ok_or(Box::from("Failed to extract file stem from file path!"))?
+            .to_string_lossy(),
+    );
+
+    let module_name_ident = storage.to_ident(&module_name);
+    let ast = yuri_parser::parse_all(source, &mut storage, &tokens)?;
+    let module = yuri_compiler::lower::lower(source, &mut storage, &ast, module_name_ident)?;
+
+    Ok(module)
+    // Ok(todo!("figure out how to return the stuff to the caller"))
 }

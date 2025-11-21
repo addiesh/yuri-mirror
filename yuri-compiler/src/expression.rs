@@ -6,40 +6,41 @@ use crate::resolution::Resolution;
 use crate::scope::Scope;
 use crate::types::TypeValue;
 use crate::types::primitive::{Primitive, ScalarTyVal};
-use crate::{FunctionItem, TypeAliasItem, VariableItem, Yrc, Ywk};
+use crate::{FunctionItem, ParseLower, TypeAliasItem, VariableItem, Yrc, Ywk};
 
 mod sealed {
     use crate::TypeValue;
     use crate::error::CompileError;
 
     pub trait ExpressionTrait<'src> {
-        fn try_get_typeval(&self) -> Result<TypeValue<'src>, CompileError<'src>>;
+        fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'src>>;
     }
 }
 
 /// Local block element.
-pub enum BlockStatement<'src> {
+pub enum BlockStatement {
     Import(Qpath),
-    Variable(Ywk<VariableItem<'src>>),
-    TypeAlias(Ywk<TypeAliasItem<'src>>),
-    Function(Ywk<FunctionItem<'src>>),
-    Return(Expression<'src>),
-    Expression(Expression<'src>),
+    Variable(Ywk<VariableItem>),
+    TypeAlias(Ywk<TypeAliasItem>),
+    Function(Ywk<FunctionItem>),
+    Assign(Qpath, Expression),
+    Return(Expression),
+    Expression(Expression),
 }
 
-pub struct BlockExpression<'src> {
+pub struct BlockExpression {
     /// The scope that this block creates.
-    pub scope: Yrc<Scope<'src>>,
-    pub statements: Vec<BlockStatement<'src>>,
+    pub scope: Yrc<Scope>,
+    pub statements: Vec<BlockStatement>,
 }
 
-impl<'src> From<&yuri_parser::expression::BlockExpression> for BlockExpression<'src> {
-    fn from(value: &yuri_parser::expression::BlockExpression) -> Self {
+impl ParseLower<BlockExpression> for yuri_parser::expression::BlockExpression {
+    fn lower(&self) -> BlockExpression {
         let scope = Yrc::new(Scope::new().into());
 
         BlockExpression {
             scope,
-            statements: value
+            statements: self
                 .statements
                 .iter()
                 .map(|stmt| {
@@ -51,6 +52,7 @@ impl<'src> From<&yuri_parser::expression::BlockExpression> for BlockExpression<'
                         BlockStatement::Return(expression) => todo!(),
                         BlockStatement::Import(ident) => todo!(),
                         BlockStatement::Value(expression) => todo!(),
+                        BlockStatement::Assign(qpath, expression) => todo!(),
                     }
                 })
                 .collect(),
@@ -58,8 +60,8 @@ impl<'src> From<&yuri_parser::expression::BlockExpression> for BlockExpression<'
     }
 }
 
-impl<'src> sealed::ExpressionTrait<'src> for BlockExpression<'src> {
-    fn try_get_typeval(&self) -> Result<TypeValue<'src>, CompileError<'src>> {
+impl<'src> sealed::ExpressionTrait<'src> for BlockExpression {
+    fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'src>> {
         // figure out if the expression is unreachable
 
         // if let Some(tail) = &self.tail {
@@ -70,90 +72,96 @@ impl<'src> sealed::ExpressionTrait<'src> for BlockExpression<'src> {
     }
 }
 
-pub struct IfExpression<'a> {
-    pub consequence: BlockExpression<'a>,
-    pub condition: Box<Expression<'a>>,
-    pub chained_else: Option<ElseChain<'a>>,
+pub struct IfExpression {
+    pub consequence: BlockExpression,
+    pub condition: Box<Expression>,
+    pub chained_else: Option<ElseChain>,
 }
 
-impl<'a> sealed::ExpressionTrait<'a> for IfExpression<'a> {
-    fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>> {
+impl<'a> sealed::ExpressionTrait<'a> for IfExpression {
+    fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'a>> {
         todo!()
     }
 }
 
-pub struct ElseChain<'a> {
-    pub consequence: BlockExpression<'a>,
-    pub condition: Option<Box<Expression<'a>>>,
-    pub chained_else: Option<Box<ElseChain<'a>>>,
+pub struct ElseChain {
+    pub consequence: BlockExpression,
+    pub condition: Option<Box<Expression>>,
+    pub chained_else: Option<Box<ElseChain>>,
 }
 
-pub struct UnaryExpression<'src> {
+pub struct UnaryExpression {
     pub operator: UnaryOperator,
-    pub value: Box<Expression<'src>>,
+    pub value: Box<Expression>,
 }
 
-impl<'src> sealed::ExpressionTrait<'src> for UnaryExpression<'src> {
-    fn try_get_typeval(&self) -> Result<TypeValue<'src>, CompileError<'src>> {
+impl From<UnaryExpression> for Expression {
+    fn from(value: UnaryExpression) -> Self {
+        Expression::Unary(value)
+    }
+}
+
+impl<'src> sealed::ExpressionTrait<'src> for UnaryExpression {
+    fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'src>> {
         todo!()
     }
 }
 
-pub struct BinaryExpression<'a> {
+pub struct BinaryExpression {
     pub operator: BinaryOperator,
-    pub a: Box<Expression<'a>>,
-    pub b: Box<Expression<'a>>,
+    pub lhs: Box<Expression>,
+    pub rhs: Box<Expression>,
 }
 
-impl<'a> sealed::ExpressionTrait<'a> for BinaryExpression<'a> {
-    fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>> {
+impl<'src> sealed::ExpressionTrait<'src> for BinaryExpression {
+    fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'src>> {
         todo!()
     }
 }
 
-pub struct CallExpression<'a> {
-    pub function: Resolution<Ywk<FunctionItem<'a>>>,
-    pub arguments: Vec<Expression<'a>>,
+pub struct CallExpression {
+    pub function: Resolution<Ywk<FunctionItem>>,
+    pub arguments: Vec<Expression>,
 }
 
-impl<'a> sealed::ExpressionTrait<'a> for CallExpression<'a> {
-    fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>> {
+impl<'src> sealed::ExpressionTrait<'src> for CallExpression {
+    fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'src>> {
         todo!()
     }
 }
 
-pub enum ArrayExpression<'a> {
-    Elements(Vec<Expression<'a>>),
+pub enum ArrayExpression {
+    Elements(Vec<Expression>),
     Spread {
-        element: Box<Expression<'a>>,
-        length: Box<Expression<'a>>,
+        element: Box<Expression>,
+        length: Box<Expression>,
     },
 }
 
-impl<'a> sealed::ExpressionTrait<'a> for ArrayExpression<'a> {
-    fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>> {
+impl<'src> sealed::ExpressionTrait<'src> for ArrayExpression {
+    fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'src>> {
         todo!()
     }
 }
 
 // Because of duck-typing, compound expression types in codegen
-pub struct CompoundExpression<'a> {
-    pub fields: Vec<CompoundExpressionField<'a>>,
+pub struct CompoundExpression {
+    pub fields: Vec<CompoundExpressionField>,
 }
 
-pub struct CompoundExpressionField<'a> {
+pub struct CompoundExpressionField {
     pub target_field: Ident,
-    pub expression: Expression<'a>,
+    pub expression: Expression,
 }
 
-impl<'a> sealed::ExpressionTrait<'a> for CompoundExpression<'a> {
-    fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>> {
+impl<'src> sealed::ExpressionTrait<'src> for CompoundExpression {
+    fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'src>> {
         todo!()
     }
 }
 
-impl<'a> sealed::ExpressionTrait<'a> for Resolution<Ywk<VariableItem<'a>>> {
-    fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>> {
+impl<'src> sealed::ExpressionTrait<'src> for Resolution<Ywk<VariableItem>> {
+    fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'src>> {
         todo!()
     }
 }
@@ -172,7 +180,7 @@ pub enum LiteralExpression {
 }
 
 impl<'a> sealed::ExpressionTrait<'a> for LiteralExpression {
-    fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>> {
+    fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'a>> {
         use ScalarTyVal as Scalar;
         Ok(TypeValue::Primitive(match self {
             LiteralExpression::Bool(b) => Primitive::Bool(Some(*b)),
@@ -184,26 +192,27 @@ impl<'a> sealed::ExpressionTrait<'a> for LiteralExpression {
     }
 }
 
-pub enum Expression<'a> {
-    Variable(Resolution<Ywk<VariableItem<'a>>>),
+pub enum Expression {
+    Variable(Resolution<Ywk<VariableItem>>),
     Literal(LiteralExpression),
-    Unary(UnaryExpression<'a>),
-    Binary(BinaryExpression<'a>),
-    Array(ArrayExpression<'a>),
-    IfExpr(IfExpression<'a>),
-    FunctionalCall(CallExpression<'a>),
-    CompoundInit(CompoundExpression<'a>),
-    Block(BlockExpression<'a>),
-    Paren(Box<Expression<'a>>),
+    Unary(UnaryExpression),
+    Binary(BinaryExpression),
+    Array(ArrayExpression),
+    IfExpr(IfExpression),
+    FunctionalCall(CallExpression),
+    CompoundInit(CompoundExpression),
+    Block(BlockExpression),
+    Paren(Box<Expression>),
     Unimplemented,
     Invalid,
 }
 
-impl<'src> From<&yuri_parser::expression::Expression> for Expression<'src> {
-    fn from(value: &yuri_parser::expression::Expression) -> Self {
+impl ParseLower<Expression> for yuri_parser::expression::Expression {
+    fn lower(&self) -> Expression {
+        use yuri_parser::expression::ArrayExpression as Arr;
         use yuri_parser::expression::Expression as Exp;
         use yuri_parser::expression::LiteralExpression as Lit;
-        match value {
+        match self {
             Exp::Variable(qpath) => Expression::Variable(Resolution::Unresolved(qpath.clone())),
             Exp::Literal(lit) => Expression::Literal(match lit {
                 Lit::Bool(b) => LiteralExpression::Bool(*b),
@@ -212,23 +221,35 @@ impl<'src> From<&yuri_parser::expression::Expression> for Expression<'src> {
                 Lit::Number(i) | Lit::Integer(i) => LiteralExpression::Integer(*i as _),
             }),
             Exp::Unary(unary) => Expression::Unary(UnaryExpression {
-                operator: todo!(),
-                value: todo!(),
+                operator: unary.operator,
+                value: unary.value.lower().into(),
             }),
-            Exp::Binary(binary) => todo!(),
-            Exp::Array(array) => todo!(),
+            Exp::Binary(binary) => Expression::Binary(BinaryExpression {
+                operator: binary.operator,
+                lhs: binary.lhs.lower().into(),
+                rhs: binary.rhs.lower().into(),
+            }),
+            Exp::Array(Arr::Elements(elements)) => Expression::Array(ArrayExpression::Elements(
+                elements.iter().map(ParseLower::lower).collect(),
+            )),
+            Exp::Array(Arr::Spread { element, length }) => {
+                Expression::Array(ArrayExpression::Spread {
+                    element: element.lower().into(),
+                    length: length.lower().into(),
+                })
+            }
             Exp::IfExpr(riffx) => todo!(),
             Exp::FunctionalCall(call) => todo!(),
             Exp::CompoundInit(compound) => todo!(),
-            Exp::Block(expr) => Expression::Block(expr.into()),
+            Exp::Block(expr) => Expression::Block(expr.lower()),
             Exp::Paren(expression) => todo!(),
             Exp::Unimplemented => Expression::Unimplemented,
         }
     }
 }
 
-impl<'a> sealed::ExpressionTrait<'a> for Expression<'a> {
-    fn try_get_typeval(&self) -> Result<TypeValue<'a>, CompileError<'a>> {
+impl<'src> sealed::ExpressionTrait<'src> for Expression {
+    fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'src>> {
         match self {
             Expression::Variable(e) => e.try_get_typeval(),
             Expression::Literal(e) => e.try_get_typeval(),

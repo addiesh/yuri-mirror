@@ -2,10 +2,10 @@ use crate::error::{CompileError, TypeError};
 use crate::types::{TypeValue, Typeable};
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct ArrayAnnotation<'a> {
+pub struct ArrayAnnotation {
     /// If this is Some, we know all elements of the array must be this type.
     /// If this is None, we don't know what the type of each element is.
-    pub element_type: Box<TypeValue<'a>>,
+    pub element_type: Box<TypeValue>,
 
     /// If this is Some, we know the size of the array at compile-time.
     /// If this is None, the array is unsized.
@@ -13,7 +13,7 @@ pub struct ArrayAnnotation<'a> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct ArrayType<'a> {
+pub struct ArrayType {
     // TODO: we can't really represent a homogenous array easily when the type of the array element is only known at runtime.
     // like, the size is known at runtime, but we can't do much with that.
     // the best we could do with type shamanry here is a generic on TypeValue (which would suck!)
@@ -21,13 +21,13 @@ pub struct ArrayType<'a> {
     /// If this is Some, this can be a VALUE or a TYPE.
     /// If `explicit_type.len` is also Some, the number of elements must be equal to the `explicit_type.len`.
     /// If this is None, this can only be a TYPE.
-    pub elements: Option<Vec<TypeValue<'a>>>,
+    pub elements: Option<Vec<TypeValue>>,
 
-    pub explicit_type: Option<ArrayAnnotation<'a>>,
+    pub explicit_type: Option<ArrayAnnotation>,
 }
 
-impl<'a> ArrayType<'a> {
-    pub fn per_element_type(&self) -> Option<TypeValue<'a>> {
+impl ArrayType {
+    pub fn per_element_type(&self) -> Option<TypeValue> {
         todo!()
     }
 
@@ -59,12 +59,12 @@ impl<'a> ArrayType<'a> {
     }
 }
 
-impl<'a> Typeable<'a> for ArrayType<'a> {
-    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError<'a>> {
+impl Typeable for ArrayType {
+    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError> {
         todo!()
     }
 
-    fn union(this: &Self, other: &Self) -> Result<Self, TypeError<'a>> {
+    fn union(this: &Self, other: &Self) -> Result<Self, TypeError> {
         todo!()
     }
 

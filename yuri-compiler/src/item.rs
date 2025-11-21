@@ -7,49 +7,49 @@ use crate::types::TypeValue;
 use crate::{Yrc, Ywk};
 
 #[derive(Debug)]
-pub struct TypeAliasItem<'src> {
-    pub parent_scope: Ywk<Scope<'src>>,
+pub struct TypeAliasItem {
+    pub parent_scope: Ywk<Scope>,
     pub name: Ident,
-    pub aliases: TypeValue<'src>,
+    pub aliases: TypeValue,
 }
 
 /// Despite the name, all variables are immutable.
-pub struct VariableItem<'src> {
-    pub parent_scope: Ywk<Scope<'src>>,
+pub struct VariableItem {
+    pub parent_scope: Ywk<Scope>,
     pub name: Ident,
     /// The target type of this variable, as specified by the programmer.
-    pub explicit_type: Option<TypeValue<'src>>,
-    pub value: Expression<'src>,
+    pub explicit_type: Option<TypeValue>,
+    pub value: Expression,
 }
 
-pub struct ParameterItem<'src> {
-    pub parent_function: Ywk<FunctionItem<'src>>,
-    pub attributes: Vec<Attribute<'src>>,
+pub struct ParameterItem {
+    pub parent_function: Ywk<FunctionItem>,
+    pub attributes: Vec<Attribute>,
     pub name: Ident,
     /// The target type of this variable, as specified by the programmer.
-    pub explicit_type: TypeValue<'src>,
+    pub explicit_type: TypeValue,
 }
 
-pub struct FunctionItem<'src> {
-    pub parent_scope: Ywk<Scope<'src>>,
-    pub attributes: Vec<Attribute<'src>>,
+pub struct FunctionItem {
+    pub parent_scope: Ywk<Scope>,
+    pub attributes: Vec<Attribute>,
     pub name: Ident,
-    pub parameters: Vec<Yrc<ParameterItem<'src>>>,
+    pub parameters: Vec<Yrc<ParameterItem>>,
     // of note, the *actual* return type is derived from the function body.
-    pub return_type: TypeValue<'src>,
-    pub body: BlockExpression<'src>,
+    pub return_type: TypeValue,
+    pub body: BlockExpression,
 }
 
 /// Represents a series of submodules, functions, global variables, and type aliases/definitions.
-pub struct Module<'a> {
-    pub parent: Option<Ywk<Module<'a>>>,
+pub struct Module {
+    pub parent: Option<Ywk<Module>>,
     pub name: Ident,
-    pub submodules: Vec<Yrc<Module<'a>>>,
-    pub scope: Yrc<Scope<'a>>,
+    pub submodules: Vec<Yrc<Module>>,
+    pub scope: Yrc<Scope>,
 }
 
-impl<'a> Module<'a> {
-    pub fn empty(name: Ident, parent: Option<Ywk<Module<'a>>>) -> Self {
+impl Module {
+    pub fn empty(name: Ident, parent: Option<Ywk<Module>>) -> Self {
         Self {
             parent,
             name,

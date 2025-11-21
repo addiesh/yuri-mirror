@@ -42,7 +42,7 @@ pub struct CompoundTyField {
     pub field_ty: WrittenTy,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum WrittenTy {
     Alias(Qpath),
     Bool,

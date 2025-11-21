@@ -1,6 +1,5 @@
 use yuri_common::{DimensionCount, FloatBits, IntBits, ScalarTy};
 
-use crate::Ywk;
 use crate::attribute::Attribute;
 use crate::error::{ResolutionError, TypeError};
 use crate::item::TypeAliasItem;
@@ -8,12 +7,13 @@ use crate::resolution::Resolution;
 use crate::types::array::ArrayType;
 use crate::types::compound::{CompoundType, CompoundTypeField};
 use crate::types::primitive::Primitive;
+use crate::{ParseLower, Ywk};
 
 pub mod array;
 pub mod compound;
 pub mod primitive;
 
-pub trait Typeable<'a>: Sized + 'a {
+pub trait Typeable: Sized {
     /// Attempt to fit `self` into `other` (`self` must be a subtype of `other`). This function is not guaranteed to be commutative.
     /// # Intersection Rules
     /// - `(Prim(Some(a)), Prim(Some(b))) if a == b => Prim(Some(a))`
@@ -47,7 +47,7 @@ pub trait Typeable<'a>: Sized + 'a {
     /// - `(_, _) => Err`
     ///   - Two completely unrelated types cannot fit into each other because
     ///     Yuri has no runtime types, sum types, or inheritance.
-    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError<'a>>;
+    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError>;
 
     /// Attempt to find the most specific supertype of both `self` and `other`. This function must be commutative.
     /// # Union Rules
@@ -62,7 +62,7 @@ pub trait Typeable<'a>: Sized + 'a {
     ///   - Unreachable types cannot exist, so they are essentially removed from the equation leaving only the other type provided.
     /// - `(_, _) => Err`
     ///   - Two completely unrelated types cannot fit into each other.
-    fn union(this: &Self, other: &Self) -> Result<Self, TypeError<'a>>;
+    fn union(this: &Self, other: &Self) -> Result<Self, TypeError>;
 
     fn is_resolved(&self) -> bool;
 }
@@ -71,20 +71,20 @@ pub trait Typeable<'a>: Sized + 'a {
 /// Whenver you would store a *value* in the Yuri AST, you store a type.
 /// Whenever you would store a *type annotation* in the Yuri AST, you store a type.
 #[derive(Clone, Debug, PartialEq)]
-pub enum TypeValue<'src> {
+pub enum TypeValue {
     Primitive(Primitive),
-    Array(Box<ArrayType<'src>>),
-    Compound(Box<CompoundType<'src>>),
+    Array(Box<ArrayType>),
+    Compound(Box<CompoundType>),
     /// Resolves to another type
-    Alias(Resolution<Ywk<TypeAliasItem<'src>>>),
+    Alias(Resolution<Ywk<TypeAliasItem>>),
     /// A value that cannot exist. Anything after an expression with this type will be ignored.
     Unreachable,
 }
 
-impl<'src> From<&yuri_parser::types::WrittenTy> for TypeValue<'src> {
-    fn from(value: &yuri_parser::types::WrittenTy) -> Self {
+impl ParseLower<TypeValue> for yuri_parser::types::WrittenTy {
+    fn lower(&self) -> TypeValue {
         use yuri_parser::types::WrittenTy;
-        match value {
+        match self {
             WrittenTy::Bool => TypeValue::Primitive(Primitive::Bool(None)),
             WrittenTy::Scalar(scalar_ty) => todo!(),
             WrittenTy::Vector(vector_ty) => todo!(),
@@ -104,7 +104,7 @@ impl<'src> From<&yuri_parser::types::WrittenTy> for TypeValue<'src> {
                                 _todo_params: Default::default(),
                             })
                             .collect(),
-                        field_type: Into::into(&field.field_ty),
+                        field_type: field.field_ty.lower(),
                     })
                     .collect(),
             })),
@@ -113,7 +113,7 @@ impl<'src> From<&yuri_parser::types::WrittenTy> for TypeValue<'src> {
     }
 }
 
-impl<'src> Typeable<'src> for TypeValue<'src> {
+impl Typeable for TypeValue {
     fn is_resolved(&self) -> bool {
         match self {
             TypeValue::Primitive(_) | TypeValue::Unreachable => true,
@@ -127,7 +127,7 @@ impl<'src> Typeable<'src> for TypeValue<'src> {
         }
     }
 
-    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError<'src>> {
+    fn intersect_with(&self, other: &Self) -> Result<Self, TypeError> {
         use TypeValue::*;
         match (self, other) {
             (Primitive(a), Primitive(b)) => a.intersect_with(b).map(Primitive),
@@ -168,7 +168,7 @@ impl<'src> Typeable<'src> for TypeValue<'src> {
         }
     }
 
-    fn union(this: &Self, other: &Self) -> Result<Self, TypeError<'src>> {
+    fn union(this: &Self, other: &Self) -> Result<Self, TypeError> {
         use crate::types;
         use TypeValue::*;
         match (this, other) {

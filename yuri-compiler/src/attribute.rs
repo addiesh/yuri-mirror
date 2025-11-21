@@ -1,20 +1,20 @@
-use crate::resolution::Resolution;
+use crate::{Yrc, resolution::Resolution};
 
 /// Provides a "compiler plugin" that works on attribute semantics.
-pub trait AttributeProvider<'a>: 'a + Send + Sync + Unpin {
+pub trait AttributeProvider: Send + Sync + Unpin + 'static {
     // TODO: implement methods
     fn process_hl(&self) -> ();
     fn process_ll(&self) -> ();
 }
 
 #[derive(Clone, Debug)]
-pub struct Attribute<'a> {
+pub struct Attribute {
     // attributes will be weird.
-    pub path: Resolution<&'a dyn AttributeProvider<'a>>,
+    pub path: Resolution<()>,
     pub _todo_params: Option<Vec<()>>,
 }
 
-impl<'a> PartialEq for Attribute<'a> {
+impl PartialEq for Attribute {
     fn eq(&self, other: &Self) -> bool {
         // TODO: I don't like this.
         let a = &self.path;

@@ -14,6 +14,7 @@ keywords = ["graphics"]
 name = "yuri"
 
 [dependencies]
+yuri-common = { path = "../yuri-common" }
 yuri-lexer = { path = "../yuri-lexer" }
 yuri-parser = { path = "../yuri-parser" }
 yuri-compiler = { path = "../yuri-compiler" }

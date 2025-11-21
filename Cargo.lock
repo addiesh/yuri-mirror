@@ -722,6 +722,9 @@ dependencies = [
 [[package]]
 name = "yuri-common"
 version = "0.1.0"
+dependencies = [
+ "unicode-xid",
+]
 
 [[package]]
 name = "yuri-compiler"
@@ -741,6 +744,7 @@ version = "0.0.0-alpha.indev.1"
 dependencies = [
  "log",
  "rayon",
+ "yuri-common",
  "yuri-compiler",
  "yuri-lexer",
  "yuri-parser",
@@ -761,6 +765,7 @@ dependencies = [
  "rustc-hash",
  "smallvec",
  "thin-vec",
+ "unicode-xid",
  "yuri-common",
  "yuri-lexer",
 ]

@@ -1,5 +1,3 @@
-use thin_vec::thin_vec;
-
 #[test]
 fn test_lower() {
     use yuri_parser::ParseStorage;
@@ -28,7 +26,9 @@ fn test(uv: f2): mat2 {
     let tokens: Box<[_]> = yuri_lexer::tokenize(source).collect();
     let mut storage = ParseStorage::default();
 
-    let ast = yuri_parser::parse_all(&mut storage, source, &tokens).unwrap();
+    let ast = yuri_parser::parse_all(source, &mut storage, &tokens).unwrap();
 
-    let lowered = crate::lower::lower(&mut storage, source, &ast).unwrap();
+    let name = storage.to_ident("test_module");
+
+    let _lowered = crate::lower::lower(source, &mut storage, &ast, name).unwrap();
 }

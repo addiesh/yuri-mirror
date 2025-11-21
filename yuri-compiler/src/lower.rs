@@ -1,9 +1,11 @@
 use std::sync::MutexGuard;
 
 use yuri_parser::Ast;
+use yuri_parser::Ident;
 use yuri_parser::ParseStorage;
 use yuri_parser::Qpath;
 
+use crate::ParseLower;
 use crate::Yrc;
 use crate::Ywk;
 use crate::attribute::Attribute;
@@ -18,109 +20,153 @@ use crate::resolution::Resolution;
 use crate::scope::Scope;
 use crate::scope::ScopeItem;
 
-struct Lower<'src> {
-    storage: &'src mut ParseStorage<'src>,
+struct Lowerer<'src, 'storage, 'at> {
+    storage: &'storage mut ParseStorage,
     source: &'src str,
-    ast: &'src Ast,
-    scope: Vec<Yrc<Scope<'src>>>,
+    ast: &'at Ast,
+    modules: Vec<Yrc<Module>>,
+    scopes: Vec<Yrc<Scope>>,
 }
 
 pub fn lower<'src>(
-    storage: &'src mut ParseStorage<'src>,
     source: &'src str,
-    ast: &'src Ast,
-) -> Result<Module<'src>, CompileError<'src>> {
+    storage: &mut ParseStorage,
+    ast: &Ast,
+    root_module_name: Ident,
+) -> Result<Yrc<Module>, CompileError<'src>> {
     // walk the tree!
 
-    let mut lowerer = Lower {
+    let mut lowerer = Lowerer {
         storage,
         source,
         ast,
-        scope: Vec::with_capacity(8),
+        scopes: Vec::with_capacity(8),
+        modules: Vec::with_capacity(2),
     };
-    lowerer.scope.push(Yrc::new(Scope::new().into()));
+    lowerer.scopes.push(Yrc::new(Scope::new().into()));
 
-    lowerer.module()
+    lowerer.module(root_module_name)
 }
 
-impl<'src> Lower<'src> {
-    pub fn focus(&mut self) -> MutexGuard<'_, Scope<'src>> {
-        self.scope.last().unwrap().lock().unwrap()
+impl<'src, 'storage, 'at> Lowerer<'src, 'storage, 'at> {
+    pub fn scope(&mut self) -> Option<Yrc<Scope>> {
+        self.scopes.last().map(Yrc::clone)
+    }
+
+    pub fn weak_scope(&mut self) -> Option<Ywk<Scope>> {
+        self.scopes.last().map(Yrc::downgrade)
+    }
+
+    pub fn focus(&mut self) -> Option<MutexGuard<'_, Scope>> {
+        Some(self.scopes.last()?.lock().unwrap())
     }
 
     // pub fn strong_focus(&self) -> Yrc<Scope<'src>> {
     //     self.scope.last().unwrap().clone()
     // }
 
-    pub fn weak_focus(&self) -> Ywk<Scope<'src>> {
-        Yrc::downgrade(self.scope.last().unwrap())
+    pub fn weak_focus(&self) -> Ywk<Scope> {
+        Yrc::downgrade(self.scopes.last().unwrap())
     }
 
-    pub fn module<'a>(&'a mut self) -> Result<Module<'src>, CompileError<'src>> {
+    pub fn module<'a>(&'a mut self, name: Ident) -> Result<Yrc<Module>, CompileError<'src>> {
         // 1. depth-first pass
 
-        for outer in self.ast {
-            use yuri_parser::item::OuterDeclaration;
-            match outer {
-                OuterDeclaration::GlobalVariable(variable_item) => {
-                    let mut variable = Yrc::new(
-                        VariableItem {
-                            parent_scope: self.weak_focus(),
-                            name: variable_item.name,
-                            explicit_type: variable_item.written_ty.as_ref().map(Into::into),
-                            value: Expression::Unimplemented,
+        let this = Yrc::new_cyclic(|module_weak| {
+            let module_parent = self.modules.last().map(Yrc::downgrade);
+            let mut submodules = Vec::new();
+
+            let scope = Yrc::new_cyclic(|scope| {
+                let mut scope = Scope {
+                    parent: self.weak_scope(),
+                    items: vec![],
+                    _rules: Default::default(),
+                };
+
+                for outer in self.ast {
+                    use yuri_parser::item::OuterDeclaration;
+                    match outer {
+                        OuterDeclaration::Submodule(module_item) => {
+                            todo!("tail recursion")
+                            // submodules.push();
                         }
-                        .into(),
-                    );
+                        OuterDeclaration::GlobalVariable(variable_item) => {
+                            let mut variable = Yrc::new(
+                                VariableItem {
+                                    parent_scope: self.weak_focus(),
+                                    name: variable_item.name,
+                                    explicit_type: variable_item
+                                        .written_ty
+                                        .as_ref()
+                                        .map(ParseLower::lower),
+                                    value: Expression::Unimplemented,
+                                }
+                                .into(),
+                            );
 
-                    // variable_item
+                            // variable_item
 
-                    self.focus().items.push(ScopeItem::Variable(variable));
-                }
-                OuterDeclaration::Function(function_item) => {
-                    let mut function = Yrc::new_cyclic(|function| {
-                        let parameters = function_item
-                            .parameters
-                            .iter()
-                            .map(|param| {
-                                Yrc::new(
-                                    ParameterItem {
-                                        parent_function: function.clone(),
-                                        name: param.name,
-                                        attributes: self
-                                            .shallow_convert_attributes(&function_item.attributes),
-                                        explicit_type: Into::into(&param.explicit_type),
-                                    }
-                                    .into(),
-                                )
-                            })
-                            .collect();
-
-                        FunctionItem {
-                            parent_scope: self.weak_focus(),
-                            name: function_item.name,
-                            attributes: self.shallow_convert_attributes(&function_item.attributes),
-                            parameters,
-                            return_type: Into::into(&function_item.return_type),
-                            body: Into::into(&function_item.body),
+                            scope.items.push(ScopeItem::Variable(variable));
                         }
-                        .into()
-                    });
+                        OuterDeclaration::Function(function_item) => {
+                            let mut function = Yrc::new_cyclic(|function| {
+                                let parameters = function_item
+                                    .parameters
+                                    .iter()
+                                    .map(|param| {
+                                        Yrc::new(
+                                            ParameterItem {
+                                                parent_function: function.clone(),
+                                                name: param.name,
+                                                attributes: self.shallow_convert_attributes(
+                                                    &function_item.attributes,
+                                                ),
+                                                explicit_type: param.explicit_type.lower(),
+                                            }
+                                            .into(),
+                                        )
+                                    })
+                                    .collect();
 
-                    self.focus().items.push(ScopeItem::Function(function));
+                                FunctionItem {
+                                    parent_scope: self.weak_focus(),
+                                    name: function_item.name,
+                                    attributes: self
+                                        .shallow_convert_attributes(&function_item.attributes),
+                                    parameters,
+                                    return_type: function_item.return_type.lower(),
+                                    body: function_item.body.lower(),
+                                }
+                                .into()
+                            });
+
+                            scope.items.push(ScopeItem::Function(function));
+                        }
+                        OuterDeclaration::Alias(type_alias_item) => todo!(),
+                        OuterDeclaration::Import(ident) => todo!(),
+                    }
                 }
-                OuterDeclaration::Alias(type_alias_item) => todo!(),
-                OuterDeclaration::Import(ident) => todo!(),
-            }
-        }
 
-        todo!()
+                scope.into()
+            });
+
+            let this = Module {
+                parent: module_parent,
+                name,
+                submodules,
+                scope,
+            };
+
+            this.into()
+        });
+
+        Ok(this)
     }
 
     pub fn shallow_convert_attributes(
         &self,
         attribs: &[yuri_parser::item::Attribute],
-    ) -> Vec<Attribute<'src>> {
+    ) -> Vec<Attribute> {
         attribs
             .iter()
             .map(|attrib| Attribute {
@@ -130,7 +176,7 @@ impl<'src> Lower<'src> {
             .collect()
     }
 
-    pub fn resolve_type(&self, qpath: &Qpath) -> Resolution<Ywk<TypeAliasItem<'src>>> {
+    pub fn resolve_type(&self, qpath: &Qpath) -> Resolution<Ywk<TypeAliasItem>> {
         // Resolution::Unresolved(qpath)
         todo!()
     }

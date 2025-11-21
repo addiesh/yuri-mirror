@@ -27,26 +27,29 @@ pub struct TokenF {
 }
 
 #[derive(Default)]
-pub struct ParseStorage<'a> {
-    ident_list: Vec<&'a str>,
-    ident_set: HashMap<&'a str, usize>,
+pub struct ParseStorage {
+    // TODO: figure out how to share resources better here.
+    // this storage was meant for the parser only, but is quickly integrating into the compiler.
+    ident_list: Vec<String>,
+    ident_set: HashMap<String, usize>,
 }
 
-impl<'a> ParseStorage<'a> {
-    pub fn to_ident(&mut self, string: &'a str) -> Ident {
+impl ParseStorage {
+    pub fn to_ident(&mut self, string: &str) -> Ident {
         if let Some(ident) = Keyword::try_from_str(string) {
             Ident::Keyword(ident)
         } else if let Some(index) = self.ident_set.get(string) {
             Ident::Id(*index)
         } else {
             let index = self.ident_list.len();
-            self.ident_list.push(string);
-            self.ident_set.insert(string, index);
+            self.ident_list.push(string.to_owned());
+            self.ident_set.insert(string.to_owned(), index);
             Ident::Id(index)
         }
     }
 
-    pub fn resolve(&'a self, ident: &Ident) -> Option<&'a str> {
+    // pub fn resolve(&'src self, ident: &Ident) -> Option<&'src str> {
+    pub fn resolve(&self, ident: &Ident) -> Option<&str> {
         match ident {
             Ident::Id(index) => self.ident_list.get(*index).map(Deref::deref),
             Ident::Keyword(keyword) => Some(keyword.as_str()),
@@ -54,7 +57,7 @@ impl<'a> ParseStorage<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Ident {
     Id(usize),
     Keyword(Keyword),
@@ -64,7 +67,7 @@ pub enum Ident {
 #[repr(transparent)]
 pub struct Qpath(pub ThinVec<Ident>);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Keyword {
     Import,
     Export,

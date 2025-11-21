@@ -40,3 +40,9 @@ fn split_results<T, E>(iterator: impl Iterator<Item = Result<T, E>>) -> (Vec<T>,
             .collect::<Vec<_>>(),
     )
 }
+
+/// Trait for cheap conversions between syntax tree and compiler node.
+/// The node may be incomplete, and may have to be resolved/lowered further.
+trait ParseLower<Output> {
+    fn lower(&self) -> Output;
+}

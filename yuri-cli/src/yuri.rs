@@ -30,9 +30,6 @@ fn cli() -> clap::Command {
         )
 }
 
-// yuri compile
-// yuri
-
 fn compile(source_files: &[String]) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     let source_files = source_files
         .into_par_iter()

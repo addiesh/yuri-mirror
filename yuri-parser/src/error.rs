@@ -4,6 +4,8 @@ use yuri_lexer::TokenKind;
 
 use crate::TokenF;
 
+pub type ParseResult<T, E = ParseError> = Result<T, E>;
+
 #[derive(Debug, Clone)]
 pub enum ParseHint {
     LeadingWhitespace,
@@ -12,22 +14,11 @@ pub enum ParseHint {
 
 #[derive(Debug, Clone)]
 pub enum ParseError {
-    Multiple(Vec<ParseError>),
-    UnexpectedToken(TokenF),
+    UnexpectedToken { token: TokenKind, at: u32 },
     UnexpectedEof,
 }
 
-impl TokenF {
-    pub fn expect(&self, kind: TokenKind) -> Result<Self, ParseError> {
-        if self.kind == kind {
-            Ok(*self)
-        } else {
-            Err(ParseError::UnexpectedToken(*self))
-        }
-    }
-}
-
-pub trait ParseTry: Sized {
+pub trait ParseTry {
     fn eof(&self) -> Result<TokenF, ParseError>;
 }
 

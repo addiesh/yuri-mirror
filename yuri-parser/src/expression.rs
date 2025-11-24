@@ -19,6 +19,7 @@ pub enum Expression {
     CompoundInit(CompoundExpression),
     Block(BlockExpression),
     Paren(Box<Expression>),
+    Error,
     #[cfg(debug_assertions)]
     Unimplemented,
 }
@@ -72,11 +73,38 @@ pub struct UnaryExpression {
     pub value: Box<Expression>,
 }
 
+impl UnaryExpression {
+    #[inline]
+    pub fn new_e(operator: UnaryOperator, value: impl Into<Expression>) -> Expression {
+        Self {
+            operator,
+            value: Box::new(value.into()),
+        }
+        .into()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct BinaryExpression {
     pub operator: BinaryOperator,
     pub lhs: Box<Expression>,
     pub rhs: Box<Expression>,
+}
+
+impl BinaryExpression {
+    #[inline]
+    pub fn new_e(
+        operator: BinaryOperator,
+        lhs: impl Into<Expression>,
+        rhs: impl Into<Expression>,
+    ) -> Expression {
+        Self {
+            operator,
+            lhs: Box::new(lhs.into()),
+            rhs: Box::new(rhs.into()),
+        }
+        .into()
+    }
 }
 
 #[derive(Debug, Clone)]

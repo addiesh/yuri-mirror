@@ -1,4 +1,6 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::ops::Deref;
 
 use thin_vec::ThinVec;
@@ -39,19 +41,19 @@ impl ParseStorage {
         if let Some(ident) = Keyword::try_from_str(string) {
             Ident::Keyword(ident)
         } else if let Some(index) = self.ident_set.get(string) {
-            Ident::Id(*index)
+            Ident::Id(*index as u32)
         } else {
             let index = self.ident_list.len();
             self.ident_list.push(string.to_owned());
             self.ident_set.insert(string.to_owned(), index);
-            Ident::Id(index)
+            Ident::Id(index as u32)
         }
     }
 
     // pub fn resolve(&'src self, ident: &Ident) -> Option<&'src str> {
-    pub fn resolve(&self, ident: &Ident) -> Option<&str> {
+    pub fn resolve(&self, ident: &Ident) -> Option<Cow<'_, str>> {
         match ident {
-            Ident::Id(index) => self.ident_list.get(*index).map(Deref::deref),
+            Ident::Id(index) => self.ident_list.get(*index as usize).map(Into::into),
             Ident::Keyword(keyword) => Some(keyword.as_str()),
         }
     }
@@ -59,7 +61,7 @@ impl ParseStorage {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Ident {
-    Id(usize),
+    Id(u32),
     Keyword(Keyword),
 }
 
@@ -95,20 +97,23 @@ pub enum Keyword {
 
     True,
     False,
-    NaN,
+    Nan,
     Inf,
+    Pi,
+    Tau,
 
     Not,
     Vec {
-        elements: DimensionCount,
+        dimensions: DimensionCount,
         repr: VectorRepr,
     },
     Mat {
         dimensions: MatrixDimensions,
         bitsize: Option<FloatBits>,
     },
-    Int,
-    Float,
+    Float(FloatBits),
+    Unsigned(IntBits),
+    Signed(IntBits),
     Sampler,
     Tex1,
     Tex2,
@@ -119,12 +124,10 @@ pub enum Keyword {
 }
 
 impl Keyword {
-    pub const fn as_str<'a>(self) -> &'a str {
-        use DimensionCount::*;
-        use FloatBits::*;
-        use IntBits::*;
-        use VectorRepr::*;
-
+    // TODO: this could feasibly be const, but I need format strings.
+    //       without pulling in const_format (which I don't feel like doing),
+    //       this would be an abhorrent nightmare of match expressions.
+    pub fn as_str<'a>(self) -> Cow<'a, str> {
         match self {
             Self::Import => "import",
             Self::Export => "export",
@@ -140,6 +143,8 @@ impl Keyword {
             Self::And => "and",
             Self::Or => "or",
             Self::Xor => "xor",
+            Self::Not => "not",
+
             Self::Loop => "loop",
             Self::Fold => "fold",
             Self::Reverse => "reverse",
@@ -149,13 +154,25 @@ impl Keyword {
             Self::Append => "append",
             Self::Prepend => "prepend",
             Self::Join => "join",
+
             Self::True => "true",
             Self::False => "false",
-            Self::NaN => "NaN",
+            Self::Nan => "NaN",
             Self::Inf => "Inf",
-            Self::Not => "not",
-            Self::Int => "int",
-            Self::Float => "float",
+            Self::Pi => "pi",
+            Self::Tau => "tau",
+
+            Self::Signed(IntBits::Int8) => "i8",
+            Self::Signed(IntBits::Int16) => "i16",
+            Self::Signed(IntBits::Int32) => "i32",
+            Self::Signed(IntBits::Int64) => "i64",
+            Self::Unsigned(IntBits::Int8) => "ui8",
+            Self::Unsigned(IntBits::Int16) => "u16",
+            Self::Unsigned(IntBits::Int32) => "u32",
+            Self::Unsigned(IntBits::Int64) => "u64",
+            Self::Float(FloatBits::Float16) => "f16",
+            Self::Float(FloatBits::Float32) => "f32",
+            Self::Float(FloatBits::Float64) => "f64",
             Self::Sampler => "sampler",
             Self::Tex1 => "tex1",
             Self::Tex2 => "tex2",
@@ -163,151 +180,32 @@ impl Keyword {
             Self::Tex3 => "tex3",
             Self::TexCube => "texcube",
             Self::TexCubeArray => "texcubearray",
-            Self::Vec { elements, repr } => match (elements, repr) {
-                (Two, Unsigned(None)) => "vec2u",
-                (Three, Unsigned(None)) => "vec3u",
-                (Four, Unsigned(None)) => "vec4u",
 
-                (Two, Signed(None)) => "vec2i",
-                (Three, Signed(None)) => "vec3i",
-                (Four, Signed(None)) => "vec4i",
-
-                (Two, Float(None)) => "vec2f",
-                (Three, Float(None)) => "vec3f",
-                (Four, Float(None)) => "vec4f",
-
-                (Two, Unsigned(Some(int_bit_size))) => match int_bit_size {
-                    Int8 => "vec2u8",
-                    Int16 => "vec2u16",
-                    Int32 => "vec2u32",
-                    Int64 => "vec2u64",
-                },
-                (Two, Signed(Some(int_bit_size))) => match int_bit_size {
-                    Int8 => "vec2f8",
-                    Int16 => "vec2f16",
-                    Int32 => "vec2f32",
-                    Int64 => "vec2f64",
-                },
-                (Two, Float(Some(float_bit_size))) => match float_bit_size {
-                    Float16 => "vec2f16",
-                    Float32 => "vec2f32",
-                    Float64 => "vec2f64",
-                },
-                (Three, Unsigned(Some(int_bit_size))) => match int_bit_size {
-                    Int8 => "vec3u8",
-                    Int16 => "vec3u16",
-                    Int32 => "vec3u32",
-                    Int64 => "vec3u64",
-                },
-                (Three, Signed(Some(int_bit_size))) => match int_bit_size {
-                    Int8 => "ve3iu8",
-                    Int16 => "vec3i16",
-                    Int32 => "vec3i32",
-                    Int64 => "vec3i64",
-                },
-                (Three, Float(Some(float_bit_size))) => match float_bit_size {
-                    Float16 => "vec3f16",
-                    Float32 => "vec3f32",
-                    Float64 => "vec3f64",
-                },
-                (Four, Unsigned(Some(int_bit_size))) => match int_bit_size {
-                    Int8 => todo!(),
-                    Int16 => todo!(),
-                    Int32 => todo!(),
-                    Int64 => todo!(),
-                },
-                (Four, Signed(Some(int_bit_size))) => match int_bit_size {
-                    Int8 => todo!(),
-                    Int16 => todo!(),
-                    Int32 => todo!(),
-                    Int64 => todo!(),
-                },
-                (Four, Float(Some(float_bit_size))) => match float_bit_size {
-                    Float16 => todo!(),
-                    Float32 => todo!(),
-                    Float64 => todo!(),
-                },
-            },
+            Self::Vec { dimensions, repr } => {
+                let pref = format_args!("vec{dimensions}");
+                return match repr {
+                    VectorRepr::Unsigned(None) => format!("{pref}u"),
+                    VectorRepr::Signed(None) => format!("{pref}i"),
+                    VectorRepr::Float(None) => format!("{pref}f"),
+                    VectorRepr::Unsigned(Some(int_bits)) => format!("{pref}u{int_bits}"),
+                    VectorRepr::Signed(Some(int_bits)) => format!("{pref}i{int_bits}"),
+                    VectorRepr::Float(Some(float_bits)) => format!("{pref}f{float_bits}"),
+                }
+                .into();
+            }
             Self::Mat {
                 dimensions,
                 bitsize,
-            } => match dimensions {
-                MatrixDimensions::Short(Two) => match bitsize {
-                    None => "mat2",
-                    Some(Float16) => "mat2f16",
-                    Some(Float32) => "mat2f32",
-                    Some(Float64) => "mat2f64",
-                },
-                MatrixDimensions::Short(Three) => match bitsize {
-                    None => "mat3",
-                    Some(Float16) => "mat3f16",
-                    Some(Float32) => "mat3f32",
-                    Some(Float64) => "mat3f64",
-                },
-                MatrixDimensions::Short(Four) => match bitsize {
-                    None => "mat4",
-                    Some(Float16) => "mat4f16",
-                    Some(Float32) => "mat4f32",
-                    Some(Float64) => "mat4f64",
-                },
-                MatrixDimensions::Long { columns, rows } => match (columns, rows) {
-                    (Two, Two) => match bitsize {
-                        None => "mat2x2",
-                        Some(Float16) => "mat2x2f16",
-                        Some(Float32) => "mat2x2f32",
-                        Some(Float64) => "mat2x2f64",
-                    },
-                    (Two, Three) => match bitsize {
-                        None => "mat2x3",
-                        Some(Float16) => "mat2x3f16",
-                        Some(Float32) => "mat2x3f32",
-                        Some(Float64) => "mat2x3f64",
-                    },
-                    (Two, Four) => match bitsize {
-                        None => "mat4",
-                        Some(Float16) => "mat4f16",
-                        Some(Float32) => "mat4f32",
-                        Some(Float64) => "mat4f64",
-                    },
-                    (Three, Two) => match bitsize {
-                        None => "mat3x2",
-                        Some(Float16) => "mat3x2f16",
-                        Some(Float32) => "mat3x2f32",
-                        Some(Float64) => "mat3x2f64",
-                    },
-                    (Three, Three) => match bitsize {
-                        None => "mat3x3",
-                        Some(Float16) => "mat3x3f16",
-                        Some(Float32) => "mat3x3f32",
-                        Some(Float64) => "mat3x3f64",
-                    },
-                    (Three, Four) => match bitsize {
-                        None => "mat3x4",
-                        Some(Float16) => "mat3x4f16",
-                        Some(Float32) => "mat3x4f32",
-                        Some(Float64) => "mat3x4f64",
-                    },
-                    (Four, Two) => match bitsize {
-                        None => "mat4x2",
-                        Some(Float16) => "mat4x2f16",
-                        Some(Float32) => "mat4x2f32",
-                        Some(Float64) => "mat4x2f64",
-                    },
-                    (Four, Three) => match bitsize {
-                        None => "mat4x3",
-                        Some(Float16) => "mat4x3f16",
-                        Some(Float32) => "mat4x3f32",
-                        Some(Float64) => "mat4x3f64",
-                    },
-                    (Four, Four) => match bitsize {
-                        None => "mat4x4",
-                        Some(Float16) => "mat4x4f16",
-                        Some(Float32) => "mat4x4f32",
-                        Some(Float64) => "mat4x4f64",
-                    },
-                },
-            },
+            } => {
+                let pref = format_args!("mat{dimensions}");
+                return match bitsize {
+                    Some(bits) => format!("{pref}f{bits}"),
+                    None => format!("{pref}"),
+                }
+                .into();
+            }
         }
+        .into()
     }
 
     // PartialEq isn't const :/
@@ -315,18 +213,25 @@ impl Keyword {
         Some(match value {
             "import" => Self::Import,
             "export" => Self::Export,
+
             "fn" => Self::Fn,
             "let" => Self::Let,
             "type" => Self::Type,
             "module" => Self::Module,
+
             "break" => Self::Break,
             "continue" => Self::Continue,
-            "else" => Self::Else,
+
             "if" => Self::If,
+            "else" => Self::Else,
+
             "return" => Self::Return,
+
             "and" => Self::And,
             "or" => Self::Or,
             "xor" => Self::Xor,
+            "not" => Self::Not,
+
             "loop" => Self::Loop,
             "fold" => Self::Fold,
             "reverse" => Self::Reverse,
@@ -336,9 +241,26 @@ impl Keyword {
             "append" => Self::Append,
             "prepend" => Self::Prepend,
             "join" => Self::Join,
-            "not" => Self::Not,
-            "int" => Self::Int,
-            "float" => Self::Float,
+
+            "true" => Self::True,
+            "false" => Self::False,
+            "inf" => Self::Inf,
+            "nan" => Self::Nan,
+            "pi" => Self::Pi,
+            "tau" => Self::Tau,
+
+            "i8" => Self::Signed(IntBits::Int8),
+            "i16" => Self::Signed(IntBits::Int16),
+            "i32" => Self::Signed(IntBits::Int32),
+            "i64" => Self::Signed(IntBits::Int64),
+            "ui8" => Self::Unsigned(IntBits::Int8),
+            "u16" => Self::Unsigned(IntBits::Int16),
+            "u32" => Self::Unsigned(IntBits::Int32),
+            "u64" => Self::Unsigned(IntBits::Int64),
+            "f16" => Self::Float(FloatBits::Float16),
+            "f32" => Self::Float(FloatBits::Float32),
+            "f64" => Self::Float(FloatBits::Float64),
+
             "sampler" => Self::Sampler,
             "tex1" => Self::Tex1,
             "tex2" => Self::Tex2,
@@ -346,7 +268,18 @@ impl Keyword {
             "tex3" => Self::Tex3,
             "texcube" => Self::TexCube,
             "texcubearray" => Self::TexCubeArray,
-            _ => return None,
+
+            _ => {
+                if value.starts_with("vec") && value.len() <= 7 {
+                    eprintln!("Can't parse vector typenames yet! (given \"{value}\")");
+                    todo!("parse vector typenames");
+                }
+                if value.starts_with("mat") && value.len() <= 9 {
+                    eprintln!("Can't parse matrix typenames yet! (given \"{value}\")");
+                    todo!("parse matrix typenames");
+                };
+                return None;
+            }
         })
     }
 }
@@ -365,4 +298,17 @@ pub enum MatrixDimensions {
         columns: DimensionCount,
         rows: DimensionCount,
     },
+}
+
+impl Display for MatrixDimensions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MatrixDimensions::Short(dimension_count) => {
+                write!(f, "{dimension_count}")
+            }
+            MatrixDimensions::Long { columns, rows } => {
+                write!(f, "{columns}x{rows}")
+            }
+        }
+    }
 }

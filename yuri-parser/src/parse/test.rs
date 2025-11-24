@@ -28,6 +28,13 @@ macro_rules! parse_assert {
             }
 
             let thing = state.expression().unwrap();
+            if !state.errors.is_empty() {
+                eprintln!("parse errors!");
+                for error in state.errors {
+                    eprintln!(" - {error}");
+                }
+                panic!();
+            }
             let expected: fn(state: &mut ParseState) -> Expression = $expect;
             assert_eq!(thing, expected(&mut state));
             println!("{thing:?}");
@@ -39,12 +46,11 @@ parse_assert! {
     simple_equality,
     "x == y",
     |state| {
-        BinaryExpression {
-            operator: BinaryOperator::Eq,
-            lhs: Expression::Variable(Qpath(thin_vec![state.str_to_ident("x")])).into(),
-            rhs: Expression::Variable(Qpath(thin_vec![state.str_to_ident("y")])).into(),
-        }
-        .into()
+        BinaryExpression::new_e(
+            BinaryOperator::Eq,
+            Expression::Variable(Qpath(thin_vec![state.str_to_ident("x")])),
+            Expression::Variable(Qpath(thin_vec![state.str_to_ident("y")])),
+        )
     }
 }
 
@@ -52,44 +58,36 @@ parse_assert! {
     complicated_expression,
     "1 + 2 * 3 / 4 == 5 or 6 != +~7",
     |_| {
-        BinaryExpression {
-            operator: BinaryOperator::LogicOr,
-            lhs: BinaryExpression {
-                operator: BinaryOperator::Eq,
-                lhs: BinaryExpression {
-                    operator: BinaryOperator::Add,
-                    lhs: LiteralExpression::Number(1).into(),
-                    rhs: BinaryExpression {
-                        operator: BinaryOperator::Multiply,
-                        lhs: LiteralExpression::Number(2).into(),
-                        rhs: BinaryExpression {
-                            operator: BinaryOperator::Divide,
-                            lhs: LiteralExpression::Number(3).into(),
-                            rhs: LiteralExpression::Number(4).into(),
-                        }
-                        .into(),
-                    }
-                    .into(),
-                }
-                .into(),
-                rhs: LiteralExpression::Number(5).into(),
-            }
-            .into(),
-            rhs: Expression::Binary(BinaryExpression {
-                operator: BinaryOperator::NotEq,
-                lhs: LiteralExpression::Number(6).into(),
-                rhs: UnaryExpression {
-                    operator: UnaryOperator::Positive,
-                    value: UnaryExpression {
-                        operator: UnaryOperator::BitwiseNot,
-                        value: LiteralExpression::Number(7).into(),
-                    }
-                    .into(),
-                }
-                .into(),
-            })
-            .into(),
-        }
-        .into()
+        BinaryExpression::new_e(
+            BinaryOperator::LogicOr,
+            BinaryExpression::new_e(
+                BinaryOperator::Eq,
+                BinaryExpression::new_e(
+                    BinaryOperator::Add,
+                    LiteralExpression::Number(1),
+                    BinaryExpression::new_e(
+                        BinaryOperator::Multiply,
+                        LiteralExpression::Number(2),
+                        BinaryExpression::new_e(
+                            BinaryOperator::Divide,
+                            LiteralExpression::Number(3),
+                            LiteralExpression::Number(4),
+                        )
+                    )
+                ),
+                LiteralExpression::Number(5)
+            ),
+            BinaryExpression::new_e(
+                BinaryOperator::NotEq,
+                LiteralExpression::Number(6),
+                UnaryExpression::new_e(
+                    UnaryOperator::Positive,
+                    UnaryExpression::new_e(
+                        UnaryOperator::BitwiseNot,
+                        LiteralExpression::Number(7),
+                    )
+                )
+            )
+        )
     }
 }

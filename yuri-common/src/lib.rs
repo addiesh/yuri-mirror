@@ -1,14 +1,29 @@
-//! Some types that are used in (almost) every stage of the compiler, and would be frustrating to relegate to just one.
-//! Types used with parser storage (i.e. ident/qpath) are still relegated to the parser however.
+use std::fmt::{Display, Write};
 
+pub mod error;
 #[cfg(test)]
 mod test;
+
+// pub struct Span {
+//     pub location: u32,
+//     pub length: u16,
+// }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DimensionCount {
     Two,
     Three,
     Four,
+}
+
+impl Display for DimensionCount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char(match self {
+            DimensionCount::Two => '2',
+            DimensionCount::Three => '3',
+            DimensionCount::Four => '4',
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,11 +34,32 @@ pub enum IntBits {
     Int64,
 }
 
+impl Display for IntBits {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            IntBits::Int8 => "8",
+            IntBits::Int16 => "16",
+            IntBits::Int32 => "32",
+            IntBits::Int64 => "64",
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FloatBits {
     Float16,
     Float32,
     Float64,
+}
+
+impl Display for FloatBits {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            FloatBits::Float16 => "16",
+            FloatBits::Float32 => "32",
+            FloatBits::Float64 => "64",
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -92,6 +128,7 @@ pub enum BinaryOperator {
 }
 
 // Could be improved
+#[must_use]
 pub fn to_snake_case(ident: &str) -> String {
     let mut ident: String = ident
         .to_lowercase()

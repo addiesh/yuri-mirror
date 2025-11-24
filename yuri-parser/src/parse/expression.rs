@@ -21,7 +21,7 @@ macro_rules! lass_bin_take {
             let mut expr = self.$next()?;
 
             loop {
-                self.take_whitespace();
+                self.take_whitespace(true);
 
                 let fun: fn(this: &mut Self) -> Result<Option<BinaryOperator>, ParseError> = $body;
 
@@ -32,7 +32,7 @@ macro_rules! lass_bin_take {
 
                 println!(concat!("! took ", stringify!($this)));
 
-                self.take_whitespace();
+                self.take_whitespace(true);
 
                 let right = self.$this()?;
                 expr = Expression::Binary(BinaryExpression {
@@ -98,7 +98,7 @@ impl<'src> ParseState<'src, '_> {
     pub fn expr_compare(&mut self) -> Result<Expression, ParseError> {
         let mut expr = self.expr_bit_or()?;
 
-        self.take_whitespace();
+        self.take_whitespace(true);
 
         let Some(operator) = self.switch_seq(&[
             (BinaryOperator::Eq, &[TokenKind::Eq, TokenKind::Eq]),
@@ -112,7 +112,7 @@ impl<'src> ParseState<'src, '_> {
             return Ok(expr);
         };
 
-        self.take_whitespace();
+        self.take_whitespace(true);
 
         let right = self.expr_compare()?;
         expr = Expression::Binary(BinaryExpression {
@@ -170,41 +170,41 @@ impl<'src> ParseState<'src, '_> {
                 TokenKind::Tilde => UnaryOperator::BitwiseNot,
                 _ => unreachable!(),
             };
-            self.take_whitespace();
+            self.take_whitespace(true);
             let value = Box::new(self.expr_unary()?);
-            self.take_whitespace();
+            self.take_whitespace(true);
             Ok(Expression::Unary(UnaryExpression { operator, value }))
         } else {
-            self.expr_call()
+            self.expr_maxprec()
         }
     }
 
-    pub fn expr_call(&mut self) -> Result<Expression, ParseError> {
-        let expr = self.expr_path()?;
-        return Ok(expr);
-        self.take_whitespace();
-        let Some(possible) = self.peek() else {
-            return Ok(expr);
-        };
-        if possible.kind == TokenKind::OpenParen {
-            let mut args = SmallVec::<[Expression; 4]>::new();
-            self.skip();
-            self.take_whitespace();
+    // pub fn expr_call(&mut self) -> Result<Expression, ParseError> {
+    //     let expr = self.expr_path()?;
+    //     return Ok(expr);
+    //     self.take_whitespace(true);
+    //     let Some(possible) = self.peek() else {
+    //         return Ok(expr);
+    //     };
+    //     if possible.kind == TokenKind::OpenParen {
+    //         let mut args = SmallVec::<[Expression; 4]>::new();
+    //         self.skip();
+    //         self.take_whitespace(true);
 
-            todo!();
-            let arg = self.expression()?;
+    //         todo!();
+    //         let arg = self.expression()?;
 
-            self.take_whitespace();
-            self.take().eof()?.expect(TokenKind::CloseParen)?;
+    //         self.take_whitespace(true);
+    //         self.expect(TokenKind::CloseParen)?;
 
-            Ok(Expression::FunctionalCall(CallExpression {
-                receiver: Box::new(expr),
-                arguments: args.into_vec(),
-            }))
-        } else {
-            self.expr_call()
-        }
-    }
+    //         Ok(Expression::FunctionalCall(CallExpression {
+    //             receiver: Box::new(expr),
+    //             arguments: args.into_vec(),
+    //         }))
+    //     } else {
+    //         self.expr_call()
+    //     }
+    // }
 
     // aka. field
     pub fn expr_path(&mut self) -> Result<Expression, ParseError> {
@@ -215,7 +215,7 @@ impl<'src> ParseState<'src, '_> {
     }
 
     pub fn expr_maxprec(&mut self) -> Result<Expression, ParseError> {
-        let tok = self.take().eof()?;
+        let tok = self.peek().eof()?;
 
         match tok.kind {
             // either:
@@ -226,31 +226,37 @@ impl<'src> ParseState<'src, '_> {
                 use LiteralExpression as LitExp;
                 println!("TODO if/loop/variable expression: {tok:?}");
                 let ident = self.token_to_ident(tok);
-                self.take_whitespace();
+                self.take_whitespace(true);
                 Ok(match ident {
-                    Ident::Id(_) => Expression::Variable(Qpath(thin_vec![ident])),
+                    Ident::Id(_) => Expression::Variable(self.qpath()?),
                     Ident::Keyword(Keyword::If) => Expression::Unimplemented,
                     Ident::Keyword(Keyword::True | Keyword::False) => Expression::Unimplemented,
-                    Ident::Keyword(Keyword::NaN) => LitExp::Decimal(f64::NAN).into(),
+                    Ident::Keyword(Keyword::Nan) => LitExp::Decimal(f64::NAN).into(),
                     Ident::Keyword(Keyword::Inf) => LitExp::Decimal(f64::INFINITY).into(),
-                    Ident::Keyword(
-                        Keyword::Loop
-                        | Keyword::Filter
-                        | Keyword::Flatten
-                        | Keyword::Fold
-                        | Keyword::Reverse
-                        | Keyword::Append
-                        | Keyword::Prepend
-                        | Keyword::Join
-                        | Keyword::Map,
-                    ) => Expression::Unimplemented,
-                    Ident::Keyword(_) => return Err(ParseError::UnexpectedToken(tok)),
+                    // Ident::Keyword(
+                    //     Keyword::Loop
+                    //     | Keyword::Filter
+                    //     | Keyword::Flatten
+                    //     | Keyword::Fold
+                    //     | Keyword::Reverse
+                    //     | Keyword::Append
+                    //     | Keyword::Prepend
+                    //     | Keyword::Join
+                    //     | Keyword::Map,
+                    // ) => Expression::Unimplemented,
+                    Ident::Keyword(_) => {
+                        return Err(ParseError::UnexpectedToken {
+                            token: tok.kind,
+                            at: self.pos(),
+                        });
+                    }
                 })
             }
             // number
             TokenKind::Literal(literal_kind) => {
                 use LiteralExpression::*;
                 let tks = self.str_from_token(tok);
+                self.skip();
                 Ok(Expression::Literal(match literal_kind {
                     LiteralKind::Int(Base::Decimal) => Number(tks.parse().unwrap()),
                     LiteralKind::Int(_) => Integer(tks.parse().unwrap()),
@@ -260,10 +266,10 @@ impl<'src> ParseState<'src, '_> {
             // group
             TokenKind::OpenParen => {
                 // self.take_delimited(TokenKind::OpenParen, TokenKind::CloseParen);
-                self.take_whitespace();
+                self.take_whitespace(true);
                 let expr = self.expression()?;
-                self.take_whitespace();
-                self.take().eof()?.expect(TokenKind::CloseParen)?;
+                self.take_whitespace(true);
+                self.expect(TokenKind::CloseParen)?;
                 Ok(expr)
             }
             // block

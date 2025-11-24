@@ -34,11 +34,17 @@ impl<'src> ParseState<'src, '_> {
                     Ident::Keyword(Keyword::Type) => todo!(),
                     Ident::Keyword(Keyword::Module) => todo!(),
                     Ident::Keyword(Keyword::Import) => todo!(),
-                    _ => Err(ParseError::UnexpectedToken(tok)),
+                    _ => Err(ParseError::UnexpectedToken {
+                        token: tok.kind,
+                        at: self.pos(),
+                    }),
                 }
             }
             // attribute before something else
-            _ => Err(ParseError::UnexpectedToken(tok)),
+            token => Err(ParseError::UnexpectedToken {
+                token,
+                at: self.pos(),
+            }),
         }
     }
 

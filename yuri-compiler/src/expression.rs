@@ -244,6 +244,7 @@ impl ParseLower<Expression> for yuri_parser::expression::Expression {
             Exp::Block(expr) => Expression::Block(expr.lower()),
             Exp::Paren(expression) => todo!(),
             Exp::Unimplemented => Expression::Unimplemented,
+            Exp::Error => todo!(),
         }
     }
 }

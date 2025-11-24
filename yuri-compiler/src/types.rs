@@ -11,6 +11,7 @@ use crate::{ParseLower, Ywk};
 
 pub mod array;
 pub mod compound;
+pub mod enumerate;
 pub mod primitive;
 
 pub trait Typeable: Sized {

@@ -115,7 +115,7 @@ pub fn parse_all<'src>(
     source: &'src str,
     storage: &mut ParseStorage,
     tokens: &'src [Token],
-) -> Result<Ast, ParseError> {
+) -> (Ast, Vec<ParseError>) {
     let mut state = ParseState {
         storage,
         source,
@@ -132,7 +132,7 @@ pub fn parse_all<'src>(
         if !state.has() {
             break;
         }
-        if !state.take_whitespace() {
+        if !state.take_whitespace(true) {
             break;
         }
         // TODO: use error recovery instead, this will error forever on an unexpected token.
@@ -142,11 +142,7 @@ pub fn parse_all<'src>(
         }
     }
 
-    if errors.is_empty() {
-        Ok(declarations)
-    } else {
-        Err(ParseError::Multiple(errors))
-    }
+    (declarations, errors)
 }
 
 struct ParseState<'src, 'storage> {
@@ -160,7 +156,7 @@ struct ParseState<'src, 'storage> {
 }
 
 impl<'src> ParseState<'src, '_> {
-    fn str_from_token(&self, token: TokenF) -> &'src str {
+    pub fn str_from_token(&self, token: TokenF) -> &'src str {
         let start = token.byte_offset as usize;
         let end = token.byte_offset as usize + token.len as usize;
         &self.source[start..end]
@@ -173,6 +169,10 @@ impl<'src> ParseState<'src, '_> {
     pub fn token_to_ident(&mut self, token: TokenF) -> Ident {
         debug_assert_eq!(token.kind, TokenKind::Ident);
         self.storage.to_ident(self.str_from_token(token))
+    }
+
+    fn pos(&self) -> u32 {
+        self.index as u32
     }
 
     fn peek(&self) -> Option<TokenF> {
@@ -234,6 +234,7 @@ impl<'src> ParseState<'src, '_> {
         true
     }
 
+    /// Returns false if EOF, true otherwise.
     fn skip(&mut self) -> bool {
         if self.has() {
             let tok = self.tokens[self.index];
@@ -260,10 +261,13 @@ impl<'src> ParseState<'src, '_> {
 
     /// Skips over whitespace/newlines/line comments, leaving the peek cursor on a non-whitespace token.
     /// Returns false if EOF is reached, true otherwise.
-    fn take_whitespace(&mut self) -> bool {
+    fn take_whitespace(&mut self, include_newline: bool) -> bool {
         loop {
             match self.peek().map(|tok| tok.kind) {
-                Some(TokenKind::Whitespace | TokenKind::Newline | TokenKind::LineComment) => {
+                Some(TokenKind::Whitespace | TokenKind::LineComment) => {
+                    self.skip();
+                }
+                Some(TokenKind::Newline) if include_newline => {
                     self.skip();
                 }
                 None => return false,
@@ -276,9 +280,39 @@ impl<'src> ParseState<'src, '_> {
         todo!()
     }
 
-    fn recover(&mut self, safety: &[&[TokenKind]]) {
-        todo!()
+    /// Eats tokens until encountering any one of the anchor sequences,
+    /// in which it does not consume the sequence and returns the first character of the sequence encountered.
+    /// If EOF is reached, None is returned.
+    fn recover<'a>(&mut self, anchors: &[&'a [TokenKind]]) -> Option<&'a [TokenKind]> {
+        loop {
+            for seq in anchors {
+                if self.take_seq(seq) {
+                    return Some(seq);
+                }
+            }
+            if !self.skip() {
+                return None;
+            }
+        }
     }
+
+    /// Like [take], but returns [ParseError::UnexpectedToken]
+    /// and doesn't consume the token if the result is unexpected.
+    /// Returns [ParseError::Eof] if there are no more tokens left.
+    fn expect(&mut self, kind: TokenKind) -> Result<TokenF, ParseError> {
+        let tok = self.peek().eof()?;
+        if tok.kind == kind {
+            Ok(self.take().unwrap())
+        } else {
+            Err(ParseError::UnexpectedToken {
+                token: tok.kind,
+                at: self.pos(),
+            })
+        }
+    }
+
+    // fn take_delimited<T>(&mut self, kind: TokenKind) -> Result<T, ParseError> {
+    // }
 }
 
 // all the methods here expect the start of what they consume to be the PEEK cursor's token.
@@ -289,11 +323,11 @@ impl<'src> ParseState<'src, '_> {
     fn qpath(&mut self) -> Result<Qpath, ParseError> {
         let mut parts = SmallVec::<[Ident; 4]>::new();
         loop {
-            let tok = self.take().eof()?.expect(TokenKind::Ident)?;
+            let tok = self.expect(TokenKind::Ident)?;
             let ident = self.token_to_ident(tok);
             parts.push(ident);
             // if the next token is a dot, add another part to the path
-            if !self.take_whitespace() {
+            if !self.take_whitespace(true) {
                 break;
             }
             match self.peek().map(|tok| tok.kind) {

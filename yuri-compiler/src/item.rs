@@ -1,4 +1,4 @@
-use yuri_parser::Ident;
+use yuri_ast::Ident;
 
 use crate::attribute::Attribute;
 use crate::expression::{BlockExpression, Expression};

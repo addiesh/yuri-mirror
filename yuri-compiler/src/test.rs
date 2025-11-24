@@ -1,6 +1,6 @@
 #[test]
 fn test_lower() {
-    use yuri_parser::ParseStorage;
+    use yuri_ast::InStorage;
 
     let source = "
 # test
@@ -24,7 +24,7 @@ fn test(uv: f2): mat2 {
 ";
 
     let tokens: Box<[_]> = yuri_lexer::tokenize(source).collect();
-    let mut storage = ParseStorage::default();
+    let mut storage = InStorage::default();
 
     let (ast, errors) = yuri_parser::parse_all(source, &mut storage, &tokens);
     if !errors.is_empty() {

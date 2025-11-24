@@ -1,4 +1,4 @@
-use yuri_parser::Qpath;
+use yuri_ast::Qpath;
 
 use crate::item::{FunctionItem, TypeAliasItem, VariableItem};
 use crate::{Yrc, Ywk};

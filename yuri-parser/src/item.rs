@@ -1,56 +1,62 @@
-use crate::expression::{BlockExpression, Expression};
-use crate::types::WrittenTy;
-use crate::{Ident, Qpath};
+use yuri_lexer::TokenKind;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Attribute {
-    pub path: Qpath,
-    pub params: Option<Vec<()>>,
-}
+use crate::ParseState;
+use crate::error::{ParseError, ParseTry};
+use yuri_ast::item::{Attribute, OuterDeclaration};
+use yuri_ast::{Ident, Keyword};
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct TypeAliasItem {
-    pub export: bool,
-    pub name: Ident,
-    pub aliases: WrittenTy,
-}
+impl<'src> ParseState<'src, '_> {
+    pub fn outer_declaration(&mut self) -> Result<OuterDeclaration, ParseError> {
+        let tok = self.peek().eof()?;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct VariableItem {
-    pub name: Ident,
-    /// The target type of this variable, as specified by the programmer.
-    pub written_ty: Option<WrittenTy>,
-    pub value: Box<Expression>,
-}
+        let attributes = if tok.kind == TokenKind::At {
+            self.attributes()?
+        } else {
+            Vec::new()
+        };
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ParameterItem {
-    pub attributes: Vec<Attribute>,
-    pub name: Ident,
-    pub explicit_type: WrittenTy,
-}
+        let tok = self.peek().eof()?;
+        let has_export = if tok.kind == TokenKind::Ident {
+            let matches = matches!(self.token_to_ident(tok), Ident::Keyword(Keyword::Export));
+            if matches {
+                self.skip();
+            }
+            matches
+        } else {
+            false
+        };
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct FunctionItem {
-    pub attributes: Vec<Attribute>,
-    pub export: bool,
-    pub name: Ident,
-    pub parameters: Vec<ParameterItem>,
-    // of note, the *actual* return type is derived from the function body.
-    pub return_type: WrittenTy,
-    pub body: BlockExpression,
-}
+        match tok.kind {
+            TokenKind::Ident => {
+                let ident = self.token_to_ident(tok);
+                match ident {
+                    Ident::Keyword(Keyword::Fn) => self.function(attributes),
+                    Ident::Keyword(Keyword::Type) => todo!(),
+                    Ident::Keyword(Keyword::Module) => todo!(),
+                    Ident::Keyword(Keyword::Import) => todo!(),
+                    _ => Err(ParseError::UnexpectedToken {
+                        token: tok.kind,
+                        at: self.pos(),
+                    }),
+                }
+            }
+            // attribute before something else
+            token => Err(ParseError::UnexpectedToken {
+                token,
+                at: self.pos(),
+            }),
+        }
+    }
 
-pub enum OuterDeclaration {
-    Submodule(Box<ModuleItem>),
-    GlobalVariable(Box<VariableItem>),
-    Function(Box<FunctionItem>),
-    Alias(Box<TypeAliasItem>),
-    Import(Ident),
-}
+    pub fn function(&mut self, attributes: Vec<Attribute>) -> Result<OuterDeclaration, ParseError> {
+        todo!()
+    }
 
-/// Represents a series of submodules, functions, global variables, and type aliases/definitions.
-pub struct ModuleItem {
-    pub name: Ident,
-    pub contents: Vec<OuterDeclaration>,
+    pub fn alias(&mut self) -> Result<OuterDeclaration, ParseError> {
+        todo!()
+    }
+
+    pub fn attributes(&mut self) -> Result<Vec<Attribute>, ParseError> {
+        todo!()
+    }
 }

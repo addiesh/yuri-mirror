@@ -1,0 +1,11 @@
+[package]
+name = "yuri-ast"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+yuri-common = { path = "../yuri-common" }
+yuri-lexer = { path = "../yuri-lexer" }
+smallvec = { workspace = true }
+thin-vec = { workspace = true }
+rustc-hash = { workspace = true }

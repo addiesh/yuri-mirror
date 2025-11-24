@@ -15,6 +15,7 @@ name = "yuri"
 
 [dependencies]
 yuri-common = { path = "../yuri-common" }
+yuri-ast = { path = "../yuri-ast" }
 yuri-lexer = { path = "../yuri-lexer" }
 yuri-parser = { path = "../yuri-parser" }
 yuri-compiler = { path = "../yuri-compiler" }

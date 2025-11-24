@@ -18,12 +18,12 @@ pub enum ParseError {
     UnexpectedEof,
 }
 
-pub trait ParseTry {
-    fn eof(&self) -> Result<TokenF, ParseError>;
+pub trait ParseTry<T: Copy> {
+    fn eof(self) -> Result<T, ParseError>;
 }
 
-impl ParseTry for Option<TokenF> {
-    fn eof(&self) -> Result<TokenF, ParseError> {
+impl<T: Copy> ParseTry<T> for Option<T> {
+    fn eof(self) -> Result<T, ParseError> {
         self.ok_or(ParseError::UnexpectedEof)
     }
 }

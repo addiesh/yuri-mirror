@@ -1,5 +1,5 @@
+use yuri_ast::{Ident, Qpath};
 use yuri_common::{BinaryOperator, UnaryOperator};
-use yuri_parser::{Ident, Qpath};
 
 use crate::error::CompileError;
 use crate::resolution::Resolution;
@@ -34,7 +34,7 @@ pub struct BlockExpression {
     pub statements: Vec<BlockStatement>,
 }
 
-impl ParseLower<BlockExpression> for yuri_parser::expression::BlockExpression {
+impl ParseLower<BlockExpression> for yuri_ast::expression::BlockExpr {
     fn lower(&self) -> BlockExpression {
         let scope = Yrc::new(Scope::new().into());
 
@@ -44,7 +44,7 @@ impl ParseLower<BlockExpression> for yuri_parser::expression::BlockExpression {
                 .statements
                 .iter()
                 .map(|stmt| {
-                    use yuri_parser::expression::BlockStatement;
+                    use yuri_ast::expression::BlockStatement;
                     match stmt {
                         BlockStatement::LocalVariable(variable_item) => todo!(),
                         BlockStatement::TypeAlias(type_alias_item) => todo!(),
@@ -166,7 +166,7 @@ impl<'src> sealed::ExpressionTrait<'src> for Resolution<Ywk<VariableItem>> {
     }
 }
 
-pub enum LiteralExpression {
+pub enum LiteralExpr {
     Bool(bool),
     /// A numeric literal with an explicit decimal point
     Decimal(f64),
@@ -179,22 +179,22 @@ pub enum LiteralExpression {
     SignReqInt(i64),
 }
 
-impl<'a> sealed::ExpressionTrait<'a> for LiteralExpression {
+impl<'a> sealed::ExpressionTrait<'a> for LiteralExpr {
     fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'a>> {
         use ScalarTyVal as Scalar;
         Ok(TypeValue::Primitive(match self {
-            LiteralExpression::Bool(b) => Primitive::Bool(Some(*b)),
-            LiteralExpression::Decimal(d) => Primitive::Scalar(Scalar::FloatX(Some(*d))),
-            LiteralExpression::Integer(i) => Primitive::Scalar(Scalar::UnsignedX(Some(*i))),
-            LiteralExpression::UnsignReqInt(u) => Primitive::Scalar(Scalar::UnsignedX(Some(*u))),
-            LiteralExpression::SignReqInt(s) => Primitive::Scalar(Scalar::SignedX(Some(*s))),
+            LiteralExpr::Bool(b) => Primitive::Bool(Some(*b)),
+            LiteralExpr::Decimal(d) => Primitive::Scalar(Scalar::FloatX(Some(*d))),
+            LiteralExpr::Integer(i) => Primitive::Scalar(Scalar::UnsignedX(Some(*i))),
+            LiteralExpr::UnsignReqInt(u) => Primitive::Scalar(Scalar::UnsignedX(Some(*u))),
+            LiteralExpr::SignReqInt(s) => Primitive::Scalar(Scalar::SignedX(Some(*s))),
         }))
     }
 }
 
 pub enum Expression {
     Variable(Resolution<Ywk<VariableItem>>),
-    Literal(LiteralExpression),
+    Literal(LiteralExpr),
     Unary(UnaryExpression),
     Binary(BinaryExpression),
     Array(ArrayExpression),
@@ -203,22 +203,33 @@ pub enum Expression {
     CompoundInit(CompoundExpression),
     Block(BlockExpression),
     Paren(Box<Expression>),
-    Unimplemented,
     Invalid,
+    #[cfg(debug_assertions)]
+    Unimplemented {
+        file: &'static str,
+        line: u32,
+        column: u32,
+    },
 }
 
-impl ParseLower<Expression> for yuri_parser::expression::Expression {
+impl ParseLower<Expression> for yuri_ast::expression::Expression {
     fn lower(&self) -> Expression {
-        use yuri_parser::expression::ArrayExpression as Arr;
-        use yuri_parser::expression::Expression as Exp;
-        use yuri_parser::expression::LiteralExpression as Lit;
+        use yuri_ast::expression::ArrayExpr as Arr;
+        use yuri_ast::expression::Expression as Exp;
+        use yuri_ast::expression::LiteralExpr as Lit;
         match self {
-            Exp::Variable(qpath) => Expression::Variable(Resolution::Unresolved(qpath.clone())),
+            Exp::Path(path_expr) => todo!(),
+            Exp::Access(qpath) => {
+                Expression::Variable(todo!("Resolution::Unresolved(qpath.clone())"))
+            }
             Exp::Literal(lit) => Expression::Literal(match lit {
-                Lit::Bool(b) => LiteralExpression::Bool(*b),
-                Lit::Decimal(d) => LiteralExpression::Decimal(*d),
-                // TODO: this sucks, held up by deciding how to represent numbers elsewhere
-                Lit::Number(i) | Lit::Integer(i) => LiteralExpression::Integer(*i as _),
+                Lit::Bool(b) => LiteralExpr::Bool(*b),
+                Lit::Decimal(d) => LiteralExpr::Decimal(*d),
+                Lit::Number(i) | Lit::Integer(i) => LiteralExpr::Integer(*i as _),
+                Lit::Pi => todo!(),
+                Lit::Tau => todo!(),
+                Lit::Inf => todo!(),
+                Lit::Nan => todo!(),
             }),
             Exp::Unary(unary) => Expression::Unary(UnaryExpression {
                 operator: unary.operator,
@@ -240,11 +251,15 @@ impl ParseLower<Expression> for yuri_parser::expression::Expression {
             }
             Exp::IfExpr(riffx) => todo!(),
             Exp::FunctionalCall(call) => todo!(),
-            Exp::CompoundInit(compound) => todo!(),
+            Exp::Compound(compound) => todo!(),
             Exp::Block(expr) => Expression::Block(expr.lower()),
             Exp::Paren(expression) => todo!(),
-            Exp::Unimplemented => Expression::Unimplemented,
-            Exp::Error => todo!(),
+            Exp::Unimplemented { file, line, column } => Expression::Unimplemented {
+                file,
+                line: *line,
+                column: *column,
+            },
+            Exp::MatchExpr(match_expression) => todo!(),
         }
     }
 }
@@ -262,7 +277,10 @@ impl<'src> sealed::ExpressionTrait<'src> for Expression {
             Expression::CompoundInit(e) => e.try_get_typeval(),
             Expression::Block(e) => e.try_get_typeval(),
             Expression::Paren(e) => e.try_get_typeval(),
-            Expression::Unimplemented => todo!("implement type"),
+            #[cfg(debug_assertions)]
+            Expression::Unimplemented { file, line, column } => {
+                panic!("unimplemented (source @ {file}:{line}:{column})")
+            }
             Expression::Invalid => panic!("invalid type propagated too far"),
         }
     }

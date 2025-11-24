@@ -16,4 +16,6 @@ pub enum DiagLevel {
 pub struct DiagInner {
     pub level: DiagLevel,
     pub location: DiagLocation,
+    // TODO: Error handling isn't great right now, just spit out a string.
+    pub message: String,
 }

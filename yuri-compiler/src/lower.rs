@@ -1,9 +1,10 @@
 use std::sync::MutexGuard;
 
-use yuri_parser::Ast;
-use yuri_parser::Ident;
-use yuri_parser::ParseStorage;
-use yuri_parser::Qpath;
+use yuri_ast::Ast;
+use yuri_ast::Ident;
+use yuri_ast::InStorage;
+use yuri_ast::Qpath;
+use yuri_ast::expression_unimplemented;
 
 use crate::ParseLower;
 use crate::Yrc;
@@ -21,7 +22,7 @@ use crate::scope::Scope;
 use crate::scope::ScopeItem;
 
 struct Lowerer<'src, 'storage, 'at> {
-    storage: &'storage mut ParseStorage,
+    storage: &'storage mut InStorage,
     source: &'src str,
     ast: &'at Ast,
     modules: Vec<Yrc<Module>>,
@@ -30,7 +31,7 @@ struct Lowerer<'src, 'storage, 'at> {
 
 pub fn lower<'src>(
     source: &'src str,
-    storage: &mut ParseStorage,
+    storage: &mut InStorage,
     ast: &Ast,
     root_module_name: Ident,
 ) -> Result<Yrc<Module>, CompileError<'src>> {
@@ -84,7 +85,7 @@ impl<'src, 'storage, 'at> Lowerer<'src, 'storage, 'at> {
                 };
 
                 for outer in self.ast {
-                    use yuri_parser::item::OuterDeclaration;
+                    use yuri_ast::item::OuterDeclaration;
                     match outer {
                         OuterDeclaration::Submodule(module_item) => {
                             todo!("tail recursion")
@@ -99,7 +100,7 @@ impl<'src, 'storage, 'at> Lowerer<'src, 'storage, 'at> {
                                         .written_ty
                                         .as_ref()
                                         .map(ParseLower::lower),
-                                    value: Expression::Unimplemented,
+                                    value: expression_unimplemented!(),
                                 }
                                 .into(),
                             );
@@ -165,7 +166,7 @@ impl<'src, 'storage, 'at> Lowerer<'src, 'storage, 'at> {
 
     pub fn shallow_convert_attributes(
         &self,
-        attribs: &[yuri_parser::item::Attribute],
+        attribs: &[yuri_ast::item::Attribute],
     ) -> Vec<Attribute> {
         attribs
             .iter()

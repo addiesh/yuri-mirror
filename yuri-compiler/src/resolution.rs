@@ -1,4 +1,4 @@
-use yuri_parser::Qpath;
+use yuri_ast::Qpath;
 
 use crate::error::ResolutionError;
 use crate::{Yrc, Ywk};

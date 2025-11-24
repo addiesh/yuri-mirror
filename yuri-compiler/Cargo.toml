@@ -9,6 +9,7 @@ license = "Apache-2.0"
 yuri-common = { path = "../yuri-common" }
 yuri-lexer = { path = "../yuri-lexer" }
 yuri-parser = { path = "../yuri-parser" }
+yuri-ast = { path = "../yuri-ast" }
 rustc-hash = { workspace = true }
 nalgebra = { workspace = true }
 thin-vec = { workspace = true }

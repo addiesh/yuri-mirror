@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt::{Debug, Display};
 
-use yuri_parser::Qpath;
+use yuri_ast::Qpath;
 use yuri_parser::error::ParseError;
 
 use crate::types::TypeValue;

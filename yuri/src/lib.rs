@@ -1,12 +1,12 @@
 use std::error::Error;
 use std::path::PathBuf;
 
+use yuri_ast::InStorage;
 use yuri_common::to_snake_case;
 use yuri_compiler::Yrc;
 use yuri_compiler::error::CompileError;
 use yuri_compiler::item::Module;
 use yuri_lexer::Token;
-use yuri_parser::ParseStorage;
 
 pub type YuriError = Box<dyn Error + Send + Sync + 'static>;
 
@@ -18,7 +18,7 @@ pub fn _test_compile<'src>(
     for token in &tokens {
         println!("{token:?}");
     }
-    let mut storage = ParseStorage::default();
+    let mut storage = InStorage::default();
 
     let module_name = to_snake_case(
         &PathBuf::from(file_path)

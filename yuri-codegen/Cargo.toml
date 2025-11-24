@@ -1,0 +1,9 @@
+[package]
+name = "yuri-codegen"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+yuri-ast = { path = "../yuri-ast" }
+yuri-compiler = { path = "../yuri-compiler" }
+rspirv = { workspace = true }

@@ -77,6 +77,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "bitflags"
+version = "2.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
+
+[[package]]
 name = "bytemuck"
 version = "1.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -509,6 +515,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a2d987857b319362043e95f5353c0535c1f58eec5336fdfcf626430af7def58"
 
 [[package]]
+name = "rspirv"
+version = "0.12.0+sdk-1.3.268.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69cf3a93856b6e5946537278df0d3075596371b1950ccff012f02b0f7eafec8d"
+dependencies = [
+ "rustc-hash 1.1.0",
+ "spirv",
+]
+
+[[package]]
+name = "rustc-hash"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
+
+[[package]]
 name = "rustc-hash"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -570,6 +592,15 @@ name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+
+[[package]]
+name = "spirv"
+version = "0.3.0+sdk-1.3.268.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eda41003dc44290527a59b13432d4a0379379fa074b70174882adfbdfd917844"
+dependencies = [
+ "bitflags",
+]
 
 [[package]]
 name = "strsim"
@@ -709,6 +740,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 
 [[package]]
+name = "yuri-ast"
+version = "0.1.0"
+dependencies = [
+ "rustc-hash 2.1.1",
+ "smallvec",
+ "thin-vec",
+ "yuri-common",
+ "yuri-lexer",
+]
+
+[[package]]
 name = "yuri-cli"
 version = "0.0.0-alpha.indev.1"
 dependencies = [
@@ -720,9 +762,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "yuri-codegen"
+version = "0.1.0"
+dependencies = [
+ "rspirv",
+ "yuri-ast",
+ "yuri-compiler",
+]
+
+[[package]]
 name = "yuri-common"
 version = "0.1.0"
 dependencies = [
+ "rustc-hash 2.1.1",
  "unicode-xid",
 ]
 
@@ -731,8 +783,9 @@ name = "yuri-compiler"
 version = "0.0.0-alpha.indev.1"
 dependencies = [
  "nalgebra",
- "rustc-hash",
+ "rustc-hash 2.1.1",
  "thin-vec",
+ "yuri-ast",
  "yuri-common",
  "yuri-lexer",
  "yuri-parser",
@@ -744,6 +797,7 @@ version = "0.0.0-alpha.indev.1"
 dependencies = [
  "log",
  "rayon",
+ "yuri-ast",
  "yuri-common",
  "yuri-compiler",
  "yuri-lexer",
@@ -762,10 +816,11 @@ dependencies = [
 name = "yuri-parser"
 version = "0.0.0-alpha.indev.1"
 dependencies = [
- "rustc-hash",
+ "rustc-hash 2.1.1",
  "smallvec",
  "thin-vec",
  "unicode-xid",
+ "yuri-ast",
  "yuri-common",
  "yuri-lexer",
 ]

@@ -1,24 +1,116 @@
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::fmt::Display;
-use std::ops::Deref;
+//! program = module_block;
+//!
+//! module_block = {
+//!     function_item
+//!     | type_alias_item
+//!     | module_item
+//!     | variable_item
+//!     | import_item
+//! };
+//!
+//! module_item =
+//!     [ "export" ],
+//!     "module",
+//!     Ident,
+//!     "{",
+//!         module_block,
+//!     "}";
+//!
+//! qpath = { Ident | (Ident, ".", qpath) };
+//!
+//! attribute = "@", qpath, [ "(", ( expression_list, [","] ), ")" ]
+//!
+//! type = qpath | array_type | compound_type;
+//!
+//! array_type = "[", type, ";", expression, "]";
+//!
+//! compound_type_field = { attribute }, Ident, ":", type;
+//! compound_type_fields = compound_type_field, [",", compound_type_fields];
+//! compound_type =
+//!     "{{",
+//!     ( compound_type_fields, [","] ),
+//!     "}}";
+//!
+//! variable_item = ["export"], "let", Ident, "=", expression, ( ";" | Newline );
+//!
+//! import_item = "import", qpath, ( ";" | Newline );
+//!
+//! type_alias_item = ["export"], "type", Ident, "=", type, ( ";" | Newline );
+//!
+//! expression = expression_1;
+//! expression_1 = expression_2, { "or", expression_2 };
+//! expression_2 = expression_3, { "and", expression_3 };
+//! expression_3 = expression_4, [ ("==" | "!=" | ">" | "<" | "<=" | ">="), expression_4 ];
+//! expression_4 = expression_5, { "|", expression_5 };
+//! expression_5 = expression_6, { "^", expression_6 };
+//! expression_6 = expression_7, { "&", expression_7 };
+//! expression_7 = expression_8, { ("<<" | ">>"), expression_8 };
+//! expression_8 = expression_9, { ("+" | "-"), expression_9 };
+//! expression_9 = expression_a, { ("*" | "/" | "%"), expression_a };
+//! expression_a = expression_b, { "**", expression_b };
+//! expression_b = ( ("!" | "~" | "+" | "-"), expression_b) | expression_c;
+//!
+//! # addie is tired. pretend field access and call expressions just work
+//! expression_c =
+//!     expression_last, { ".", qpath };
+//!     | call_expression
+//!     | ( "(", expression, ")" )
 
+//! expression_last =
+//!     | qpath
+//!     | Literal
+//!     | if_expression
+//!     | array_expression
+//!     | compound_expression
+//!     | expression_block;
+//!
+//!
+//! expression_list = expression, [",", expression_list];
+//!
+//! call_expression = Ident, "(", ( expression_list, [","] ), ")"
+//!
+//! compound_expression_field = Ident, "=", expression;
+//! compound_expression_fields = compound_expression_field, [",", compound_expression_fields];
+//! compound_expression =
+//!     "{{",
+//!     ( compound_expression_fields, [","] ),
+//!     "}}";
+//!
+//! function_param = { attribute }, Ident, ":", type;
+//! function_params = function_param, [",", function_params]
+//! function_item =
+//!     { attribute },
+//!     [ "export" ],
+//!     "fn",
+//!     Ident,
+//!     "(",
+//!     ( function_params, [","] )
+//!     ")",
+//!     ":",
+//!     type,
+//!     expression_block;
+//!
+//!
+//! expression_block = {
+//!     function_item
+//!     | type_alias_item
+//!     | variable_item
+//!     | import_item
+//!     | expression
+//! };
+
+use smallvec::SmallVec;
 use thin_vec::ThinVec;
-use yuri_common::{DimensionCount, FloatBits, IntBits};
-use yuri_lexer::token::TokenKind;
+use yuri_ast::{Ast, Ident, InStorage, Qpath};
+use yuri_lexer::{Token, TokenKind};
 
-use crate::error::ParseError;
-use crate::item::OuterDeclaration;
-
-pub use parse::parse_all;
+use crate::error::{ParseError, ParseTry};
 
 pub mod error;
 pub mod expression;
 pub mod item;
-pub mod parse;
-pub mod types;
-
-pub type Ast = Vec<OuterDeclaration>;
+#[cfg(test)]
+mod test;
 
 /// "Full" token
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -28,287 +120,252 @@ pub struct TokenF {
     pub len: u32,
 }
 
-#[derive(Default)]
-pub struct ParseStorage {
-    // TODO: figure out how to share resources better here.
-    // this storage was meant for the parser only, but is quickly integrating into the compiler.
-    ident_list: Vec<String>,
-    ident_set: HashMap<String, usize>,
-}
+pub fn parse_all<'src>(
+    source: &'src str,
+    storage: &mut InStorage,
+    tokens: &'src [Token],
+) -> (Ast, Vec<ParseError>) {
+    let mut state = ParseState {
+        storage,
+        source,
+        tokens,
+        errors: Vec::new(),
+        index: 0,
+        byte_offset: 0,
+    };
 
-impl ParseStorage {
-    pub fn to_ident(&mut self, string: &str) -> Ident {
-        if let Some(ident) = Keyword::try_from_str(string) {
-            Ident::Keyword(ident)
-        } else if let Some(index) = self.ident_set.get(string) {
-            Ident::Id(*index as u32)
-        } else {
-            let index = self.ident_list.len();
-            self.ident_list.push(string.to_owned());
-            self.ident_set.insert(string.to_owned(), index);
-            Ident::Id(index as u32)
+    let mut declarations = Vec::new();
+    let mut errors = Vec::new();
+
+    loop {
+        if !state.has() {
+            break;
+        }
+        if !state.take_whitespace(true) {
+            break;
+        }
+        // TODO: use error recovery instead, this will error forever on an unexpected token.
+        match state.outer_declaration() {
+            Ok(decl) => declarations.push(decl),
+            Err(err) => errors.push(err),
         }
     }
 
-    // pub fn resolve(&'src self, ident: &Ident) -> Option<&'src str> {
-    pub fn resolve(&self, ident: &Ident) -> Option<Cow<'_, str>> {
-        match ident {
-            Ident::Id(index) => self.ident_list.get(*index as usize).map(Into::into),
-            Ident::Keyword(keyword) => Some(keyword.as_str()),
-        }
-    }
+    (declarations, errors)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Ident {
-    Id(u32),
-    Keyword(Keyword),
+struct ParseState<'src, 'storage> {
+    storage: &'storage mut InStorage,
+    source: &'src str,
+    tokens: &'src [yuri_lexer::Token],
+    byte_offset: u32,
+    errors: Vec<ParseError>,
+    // hints: Vec<ParseHint>
+    index: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-#[repr(transparent)]
-pub struct Qpath(pub ThinVec<Ident>);
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Keyword {
-    Import,
-    Export,
-    Fn,
-    Let,
-    Type,
-    Module,
-    Break,
-    Continue,
-    Else,
-    If,
-    Return,
-    And,
-    Or,
-    Xor,
-    Loop,
-    Fold,
-    Reverse,
-    Map,
-    Flatten,
-    Filter,
-    Append,
-    Prepend,
-    Join,
-
-    True,
-    False,
-    Nan,
-    Inf,
-    Pi,
-    Tau,
-
-    Not,
-    Vec {
-        dimensions: DimensionCount,
-        repr: VectorRepr,
-    },
-    Mat {
-        dimensions: MatrixDimensions,
-        bitsize: Option<FloatBits>,
-    },
-    Float(FloatBits),
-    Unsigned(IntBits),
-    Signed(IntBits),
-    Sampler,
-    Tex1,
-    Tex2,
-    Tex2Array,
-    Tex3,
-    TexCube,
-    TexCubeArray,
-}
-
-impl Keyword {
-    // TODO: this could feasibly be const, but I need format strings.
-    //       without pulling in const_format (which I don't feel like doing),
-    //       this would be an abhorrent nightmare of match expressions.
-    pub fn as_str<'a>(self) -> Cow<'a, str> {
-        match self {
-            Self::Import => "import",
-            Self::Export => "export",
-            Self::Fn => "fn",
-            Self::Let => "let",
-            Self::Type => "type",
-            Self::Module => "module",
-            Self::Break => "break",
-            Self::Continue => "continue",
-            Self::Else => "else",
-            Self::If => "if",
-            Self::Return => "return",
-            Self::And => "and",
-            Self::Or => "or",
-            Self::Xor => "xor",
-            Self::Not => "not",
-
-            Self::Loop => "loop",
-            Self::Fold => "fold",
-            Self::Reverse => "reverse",
-            Self::Map => "map",
-            Self::Flatten => "flatten",
-            Self::Filter => "filter",
-            Self::Append => "append",
-            Self::Prepend => "prepend",
-            Self::Join => "join",
-
-            Self::True => "true",
-            Self::False => "false",
-            Self::Nan => "NaN",
-            Self::Inf => "Inf",
-            Self::Pi => "pi",
-            Self::Tau => "tau",
-
-            Self::Signed(IntBits::Int8) => "i8",
-            Self::Signed(IntBits::Int16) => "i16",
-            Self::Signed(IntBits::Int32) => "i32",
-            Self::Signed(IntBits::Int64) => "i64",
-            Self::Unsigned(IntBits::Int8) => "ui8",
-            Self::Unsigned(IntBits::Int16) => "u16",
-            Self::Unsigned(IntBits::Int32) => "u32",
-            Self::Unsigned(IntBits::Int64) => "u64",
-            Self::Float(FloatBits::Float16) => "f16",
-            Self::Float(FloatBits::Float32) => "f32",
-            Self::Float(FloatBits::Float64) => "f64",
-            Self::Sampler => "sampler",
-            Self::Tex1 => "tex1",
-            Self::Tex2 => "tex2",
-            Self::Tex2Array => "tex2array",
-            Self::Tex3 => "tex3",
-            Self::TexCube => "texcube",
-            Self::TexCubeArray => "texcubearray",
-
-            Self::Vec { dimensions, repr } => {
-                let pref = format_args!("vec{dimensions}");
-                return match repr {
-                    VectorRepr::Unsigned(None) => format!("{pref}u"),
-                    VectorRepr::Signed(None) => format!("{pref}i"),
-                    VectorRepr::Float(None) => format!("{pref}f"),
-                    VectorRepr::Unsigned(Some(int_bits)) => format!("{pref}u{int_bits}"),
-                    VectorRepr::Signed(Some(int_bits)) => format!("{pref}i{int_bits}"),
-                    VectorRepr::Float(Some(float_bits)) => format!("{pref}f{float_bits}"),
-                }
-                .into();
-            }
-            Self::Mat {
-                dimensions,
-                bitsize,
-            } => {
-                let pref = format_args!("mat{dimensions}");
-                return match bitsize {
-                    Some(bits) => format!("{pref}f{bits}"),
-                    None => format!("{pref}"),
-                }
-                .into();
-            }
-        }
-        .into()
+impl<'src> ParseState<'src, '_> {
+    pub fn str_from_token(&self, token: TokenF) -> &'src str {
+        let start = token.byte_offset as usize;
+        let end = token.byte_offset as usize + token.len as usize;
+        &self.source[start..end]
     }
 
-    // PartialEq isn't const :/
-    pub fn try_from_str(value: &str) -> Option<Self> {
-        Some(match value {
-            "import" => Self::Import,
-            "export" => Self::Export,
+    pub fn str_to_ident<'a: 'src>(&mut self, str: &'a str) -> Ident {
+        self.storage.to_ident(str)
+    }
 
-            "fn" => Self::Fn,
-            "let" => Self::Let,
-            "type" => Self::Type,
-            "module" => Self::Module,
+    pub fn token_to_ident(&mut self, token: TokenF) -> Ident {
+        debug_assert_eq!(token.kind, TokenKind::Ident);
+        self.storage.to_ident(self.str_from_token(token))
+    }
 
-            "break" => Self::Break,
-            "continue" => Self::Continue,
+    fn pos(&self) -> u32 {
+        self.index as u32
+    }
 
-            "if" => Self::If,
-            "else" => Self::Else,
-
-            "return" => Self::Return,
-
-            "and" => Self::And,
-            "or" => Self::Or,
-            "xor" => Self::Xor,
-            "not" => Self::Not,
-
-            "loop" => Self::Loop,
-            "fold" => Self::Fold,
-            "reverse" => Self::Reverse,
-            "map" => Self::Map,
-            "flatten" => Self::Flatten,
-            "filter" => Self::Filter,
-            "append" => Self::Append,
-            "prepend" => Self::Prepend,
-            "join" => Self::Join,
-
-            "true" => Self::True,
-            "false" => Self::False,
-            "inf" => Self::Inf,
-            "nan" => Self::Nan,
-            "pi" => Self::Pi,
-            "tau" => Self::Tau,
-
-            "i8" => Self::Signed(IntBits::Int8),
-            "i16" => Self::Signed(IntBits::Int16),
-            "i32" => Self::Signed(IntBits::Int32),
-            "i64" => Self::Signed(IntBits::Int64),
-            "ui8" => Self::Unsigned(IntBits::Int8),
-            "u16" => Self::Unsigned(IntBits::Int16),
-            "u32" => Self::Unsigned(IntBits::Int32),
-            "u64" => Self::Unsigned(IntBits::Int64),
-            "f16" => Self::Float(FloatBits::Float16),
-            "f32" => Self::Float(FloatBits::Float32),
-            "f64" => Self::Float(FloatBits::Float64),
-
-            "sampler" => Self::Sampler,
-            "tex1" => Self::Tex1,
-            "tex2" => Self::Tex2,
-            "tex2array" => Self::Tex2Array,
-            "tex3" => Self::Tex3,
-            "texcube" => Self::TexCube,
-            "texcubearray" => Self::TexCubeArray,
-
-            _ => {
-                if value.starts_with("vec") && value.len() <= 7 {
-                    eprintln!("Can't parse vector typenames yet! (given \"{value}\")");
-                    todo!("parse vector typenames");
-                }
-                if value.starts_with("mat") && value.len() <= 9 {
-                    eprintln!("Can't parse matrix typenames yet! (given \"{value}\")");
-                    todo!("parse matrix typenames");
-                };
-                return None;
-            }
+    fn peek(&self) -> Option<TokenF> {
+        self.tokens.get(self.index).map(|tok| TokenF {
+            kind: tok.kind,
+            byte_offset: self.byte_offset,
+            len: tok.len,
         })
     }
-}
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum VectorRepr {
-    Unsigned(Option<IntBits>),
-    Signed(Option<IntBits>),
-    Float(Option<FloatBits>),
-}
+    fn peek_off(&self, offset: usize) -> Option<TokenF> {
+        if offset == 0 {
+            return self.peek();
+        }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MatrixDimensions {
-    Short(DimensionCount),
-    Long {
-        columns: DimensionCount,
-        rows: DimensionCount,
-    },
-}
+        let mut byte_offset = self.byte_offset;
 
-impl Display for MatrixDimensions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MatrixDimensions::Short(dimension_count) => {
-                write!(f, "{dimension_count}")
-            }
-            MatrixDimensions::Long { columns, rows } => {
-                write!(f, "{columns}x{rows}")
+        // consume tokens up until the offset
+        // TODO: make sure that starting at 0 is correct here,
+        // my "off-by-one" alarm is ringing
+        for i in 0..(offset - 1) {
+            let tok = self.tokens.get(self.index + i)?;
+            byte_offset += tok.len;
+        }
+
+        self.tokens.get(self.index + offset).map(|tok| TokenF {
+            byte_offset,
+            kind: tok.kind,
+            len: tok.len,
+        })
+    }
+
+    fn take(&mut self) -> Option<TokenF> {
+        let tok = self.peek()?;
+        self.skip();
+        Some(tok)
+    }
+
+    fn switch_seq<T: Copy>(&mut self, sequence: &[(T, &[TokenKind])]) -> Option<T> {
+        for (res, seq) in sequence {
+            if self.take_seq(seq) {
+                return Some(*res);
             }
         }
+        None
+    }
+
+    fn take_seq(&mut self, sequence: &[TokenKind]) -> bool {
+        for (i, kind) in sequence.iter().enumerate() {
+            let Some(other) = self.peek_off(i) else {
+                return false;
+            };
+            let otherkind = other.kind;
+            if otherkind != *kind {
+                return false;
+            }
+        }
+        self.skip_n(sequence.len());
+        true
+    }
+
+    /// Returns false if EOF, true otherwise.
+    fn skip(&mut self) -> bool {
+        if self.has() {
+            let tok = self.tokens[self.index];
+            self.index += 1;
+            self.byte_offset += tok.len;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn skip_n(&mut self, n: usize) -> bool {
+        for _ in 0..n {
+            if !self.skip() {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn has(&self) -> bool {
+        self.index < self.tokens.len() // as isize
+    }
+
+    /// Skips over whitespace/newlines/line comments, leaving the peek cursor on a non-whitespace token.
+    /// Returns false if EOF is reached, true otherwise.
+    fn take_whitespace(&mut self, include_newline: bool) -> bool {
+        loop {
+            match self.peek().map(|tok| tok.kind) {
+                Some(TokenKind::Whitespace | TokenKind::LineComment) => {
+                    self.skip();
+                }
+                Some(TokenKind::Newline) if include_newline => {
+                    self.skip();
+                }
+                None => return false,
+                _ => return true,
+            };
+        }
+    }
+
+    // Returns the offset to the next non-whitespace token, and what kind of token it is.
+    fn peek_whitespace(
+        &mut self,
+        mut offset: usize,
+        include_newline: bool,
+    ) -> Option<(usize, TokenF)> {
+        loop {
+            let Some(tok) = self.peek_off(offset) else {
+                return None;
+            };
+            match tok.kind {
+                TokenKind::Whitespace | TokenKind::LineComment => {
+                    offset += 1;
+                }
+                TokenKind::Newline if include_newline => {
+                    offset += 1;
+                }
+                _ => return Some((offset, tok)),
+            };
+        }
+    }
+
+    fn take_delimited(&mut self, open: TokenKind, close: TokenKind) {
+        todo!()
+    }
+
+    /// Eats tokens until encountering any one of the anchor sequences,
+    /// in which it does not consume the sequence and returns the first character of the sequence encountered.
+    /// If EOF is reached, None is returned.
+    fn recover<'a>(&mut self, anchors: &[&'a [TokenKind]]) -> Option<&'a [TokenKind]> {
+        loop {
+            for seq in anchors {
+                if self.take_seq(seq) {
+                    return Some(seq);
+                }
+            }
+            if !self.skip() {
+                return None;
+            }
+        }
+    }
+
+    /// Like [take], but returns [ParseError::UnexpectedToken]
+    /// and doesn't consume the token if the result is unexpected.
+    /// Returns [ParseError::Eof] if there are no more tokens left.
+    fn expect(&mut self, kind: TokenKind) -> Result<TokenF, ParseError> {
+        let tok = self.peek().eof()?;
+        if tok.kind == kind {
+            Ok(self.take().unwrap())
+        } else {
+            Err(ParseError::UnexpectedToken {
+                token: tok.kind,
+                at: self.pos(),
+            })
+        }
+    }
+
+    // fn take_delimited<T>(&mut self, kind: TokenKind) -> Result<T, ParseError> {
+    // }
+}
+
+// all the methods here expect the start of what they consume to be the PEEK cursor's token.
+// TODO: error recovery w/ anchors and whatnot. that blog post was good.
+impl<'src> ParseState<'src, '_> {
+    /// Jumps to the next token, consuming a qualified path (a dot-separated identifier).
+    /// On success, leaves the peek cursor on the next unrecognized token.
+    fn qpath(&mut self) -> Result<Qpath, ParseError> {
+        let mut parts = SmallVec::<[Ident; 4]>::new();
+        loop {
+            let tok = self.expect(TokenKind::Ident)?;
+            let ident = self.token_to_ident(tok);
+            parts.push(ident);
+            // if the next token is a dot, add another part to the path
+            if !self.take_whitespace(true) {
+                break;
+            }
+            match self.peek().map(|tok| tok.kind) {
+                Some(TokenKind::Dot) => self.skip(),
+                _ => break,
+            };
+        }
+        Ok(Qpath(ThinVec::from(parts.as_slice())))
     }
 }

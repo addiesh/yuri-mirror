@@ -51,4 +51,6 @@ pub enum WrittenTy {
     Matrix(MatrixTy),
     Array(Box<ArrayTy>),
     Compound(Box<CompoundTy>),
+    // TODO
+    Enum,
 }

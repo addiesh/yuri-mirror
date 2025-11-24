@@ -1,4 +1,4 @@
-use yuri_parser::Ident;
+use yuri_ast::Ident;
 
 // TODO: the design for enums is not complete
 pub struct EnumerateType {

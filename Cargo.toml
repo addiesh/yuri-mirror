@@ -1,7 +1,19 @@
 [workspace]
 resolver = "3"
-members = ["yuri", "yuri-lexer", "yuri-parser", "yuri-compiler", "yuri-cli", "yuri-common"]
-default-members = ["yuri", "yuri-lexer", "yuri-parser", "yuri-compiler", "yuri-cli"]
+members = [
+    "yuri",
+    "yuri-cli",
+    "yuri-common",
+    "yuri-lexer",
+    "yuri-ast",
+    "yuri-parser",
+    "yuri-compiler",
+    "yuri-codegen"
+]
+default-members = [
+    "yuri",
+    "yuri-cli"
+]
 
 [workspace.dependencies]
 log = "0.4.28"

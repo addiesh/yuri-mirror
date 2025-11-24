@@ -1,173 +1,315 @@
-use std::fmt::{Display, Formatter};
+use std::f64;
+
+use smallvec::SmallVec;
+use yuri_ast::expression::{BinaryExpr, CallExpr, Expression, LiteralExpr, PathExpr, UnaryExpr};
+use yuri_ast::{Ident, Keyword, Qpath, expression_unimplemented};
 
 use yuri_common::{BinaryOperator, UnaryOperator};
+use yuri_lexer::TokenKind;
+use yuri_lexer::token::{Base, LiteralKind};
 
-use crate::item::{FunctionItem, TypeAliasItem, VariableItem};
-use crate::{Ident, Qpath};
+use crate::ParseState;
+use crate::error::{ParseError, ParseTry};
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Expression {
-    /// Load the value of a given variable.
-    Variable(Qpath),
-    /// A value to be evaluated at compile-time.
-    Literal(LiteralExpression),
-    Unary(UnaryExpression),
-    Binary(BinaryExpression),
-    Array(ArrayExpression),
-    IfExpr(IfExpression),
-    FunctionalCall(CallExpression),
-    CompoundInit(CompoundExpression),
-    Block(BlockExpression),
-    Paren(Box<Expression>),
-    Error,
-    #[cfg(debug_assertions)]
-    Unimplemented,
-}
+/// Define a function to consume a left-associative binary expression.
+/// I don't particularly like macros in Rust, but this felt like a reasonable use case.
+macro_rules! lass_bin_take {
+    ($this:ident, $next:ident, $body:expr) => {
+        pub fn $this(&mut self) -> Result<Expression, ParseError> {
+            let mut expr = self.$next()?;
 
-macro_rules! expression_from_helper {
-    ($from:ty, $variant:ident) => {
-        impl From<$from> for Expression {
-            fn from(value: $from) -> Self {
-                Expression::$variant(value)
+            loop {
+                self.take_whitespace(true);
+
+                let fun: fn(this: &mut Self) -> Result<Option<BinaryOperator>, ParseError> = $body;
+
+                let Some(operator) = (fun(self))? else {
+                    // println!(concat!("didn't take ", stringify!($this)));
+                    break;
+                };
+
+                println!(concat!("took ", stringify!($this)));
+
+                self.take_whitespace(true);
+
+                let right = self.$this()?;
+                expr = Expression::Binary(BinaryExpr {
+                    operator,
+                    lhs: Box::new(expr),
+                    rhs: Box::new(right),
+                });
             }
-        }
 
-        impl From<$from> for Box<Expression> {
-            fn from(value: $from) -> Self {
-                Box::new(Expression::$variant(value))
-            }
+            Ok(expr)
         }
     };
 }
-expression_from_helper!(LiteralExpression, Literal);
-expression_from_helper!(UnaryExpression, Unary);
-expression_from_helper!(BinaryExpression, Binary);
-expression_from_helper!(ArrayExpression, Array);
-expression_from_helper!(IfExpression, IfExpr);
-expression_from_helper!(CallExpression, FunctionalCall);
-expression_from_helper!(CompoundExpression, CompoundInit);
-expression_from_helper!(BlockExpression, Block);
 
-impl Display for Expression {
-    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
-// TODO: disambiguate between hex/binary/etc.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum LiteralExpression {
-    Bool(bool),
-    /// Known to be a float (i.e. decimal point)
-    Decimal(f64),
-    // TODO: improve this specificity
-    /// Known to be an integer (i.e. non-decimal base)
-    Integer(i128),
-    /// May be coerced to any possible type
-    Number(i128),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct UnaryExpression {
-    pub operator: UnaryOperator,
-    pub value: Box<Expression>,
-}
-
-impl UnaryExpression {
+impl<'src> ParseState<'src, '_> {
     #[inline]
-    pub fn new_e(operator: UnaryOperator, value: impl Into<Expression>) -> Expression {
-        Self {
-            operator,
-            value: Box::new(value.into()),
-        }
-        .into()
+    pub fn expression(&mut self) -> Result<Expression, ParseError> {
+        self.expr_logic_or()
     }
-}
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct BinaryExpression {
-    pub operator: BinaryOperator,
-    pub lhs: Box<Expression>,
-    pub rhs: Box<Expression>,
-}
-
-impl BinaryExpression {
-    #[inline]
-    pub fn new_e(
-        operator: BinaryOperator,
-        lhs: impl Into<Expression>,
-        rhs: impl Into<Expression>,
-    ) -> Expression {
-        Self {
-            operator,
-            lhs: Box::new(lhs.into()),
-            rhs: Box::new(rhs.into()),
+    lass_bin_take!(expr_logic_or, expr_logic_xor, |this| {
+        let Some(tok) = this.peek() else {
+            return Ok(None);
+        };
+        if tok.kind == TokenKind::Ident {
+            let ident = this.token_to_ident(tok);
+            if let Ident::Keyword(Keyword::Or) = ident {
+                this.skip();
+                return Ok(Some(BinaryOperator::LogicOr));
+            }
         }
-        .into()
+        Ok(None)
+    });
+
+    lass_bin_take!(expr_logic_xor, expr_logic_and, |this| {
+        let Some(tok) = this.peek() else {
+            return Ok(None);
+        };
+        if tok.kind == TokenKind::Ident {
+            let ident = this.token_to_ident(tok);
+            if let Ident::Keyword(Keyword::Xor) = ident {
+                this.skip();
+                return Ok(Some(BinaryOperator::LogicXor));
+            }
+        }
+        Ok(None)
+    });
+
+    lass_bin_take!(expr_logic_and, expr_compare, |this| {
+        let Some(tok) = this.peek() else {
+            return Ok(None);
+        };
+        if tok.kind == TokenKind::Ident {
+            let ident = this.token_to_ident(tok);
+            if let Ident::Keyword(Keyword::And) = ident {
+                this.skip();
+                return Ok(Some(BinaryOperator::LogicAnd));
+            }
+        }
+        Ok(None)
+    });
+
+    pub fn expr_compare(&mut self) -> Result<Expression, ParseError> {
+        let mut expr = self.expr_bit_or()?;
+
+        self.take_whitespace(true);
+
+        let Some(operator) = self.switch_seq(&[
+            (BinaryOperator::Eq, &[TokenKind::Eq, TokenKind::Eq]),
+            (BinaryOperator::NotEq, &[TokenKind::Bang, TokenKind::Eq]),
+            (BinaryOperator::GtEq, &[TokenKind::Gt, TokenKind::Eq]),
+            (BinaryOperator::LtEq, &[TokenKind::Lt, TokenKind::Eq]),
+            (BinaryOperator::Gt, &[TokenKind::Gt]),
+            (BinaryOperator::Lt, &[TokenKind::Lt]),
+        ]) else {
+            // println!("didn't take comparison");
+            return Ok(expr);
+        };
+
+        self.take_whitespace(true);
+
+        let right = self.expr_compare()?;
+        expr = Expression::Binary(BinaryExpr {
+            operator,
+            lhs: Box::new(expr),
+            rhs: Box::new(right),
+        });
+
+        Ok(expr)
     }
-}
 
-#[derive(Debug, Clone)]
-pub enum InnerDeclaration {
-    Global(VariableItem),
-    Function(FunctionItem),
-    Alias(TypeAliasItem),
-}
+    lass_bin_take!(expr_bit_or, expr_bit_xor, |this| Ok(this
+        .take_seq(&[TokenKind::Pipe])
+        .then_some(BinaryOperator::BitOr)));
 
-/// Local block element.
-#[derive(Debug, Clone, PartialEq)]
-pub enum BlockStatement {
-    LocalVariable(VariableItem),
-    TypeAlias(TypeAliasItem),
-    Function(Box<FunctionItem>),
-    Assign(Qpath, Box<Expression>),
-    Return(Box<Expression>),
-    Import(Ident),
-    Value(Box<Expression>),
-}
+    lass_bin_take!(expr_bit_xor, expr_bit_and, |this| Ok(this
+        .take_seq(&[TokenKind::Caret])
+        .then_some(BinaryOperator::BitXor)));
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct BlockExpression {
-    /// The scope that this block creates.
-    pub statements: Vec<BlockStatement>,
-}
+    lass_bin_take!(expr_bit_and, expr_shift, |this| Ok(this
+        .take_seq(&[TokenKind::Amp])
+        .then_some(BinaryOperator::BitAnd)));
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct IfExpression {
-    pub consequence: Box<BlockExpression>,
-    pub condition: Box<Expression>,
-    pub chained_else: Option<Box<ElseChain>>,
-}
+    lass_bin_take!(expr_shift, expr_sum, |this| Ok(this.switch_seq(&[
+        (BinaryOperator::ShiftLeft, &[TokenKind::Lt, TokenKind::Lt]),
+        (BinaryOperator::ShiftRight, &[TokenKind::Gt, TokenKind::Gt]),
+    ])));
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ElseChain {
-    pub consequence: BlockExpression,
-    pub condition: Option<Box<Expression>>,
-    pub chained_else: Option<Box<ElseChain>>,
-}
+    lass_bin_take!(expr_sum, expr_product, |this| Ok(this.switch_seq(&[
+        (BinaryOperator::Add, &[TokenKind::Plus]),
+        (BinaryOperator::Sub, &[TokenKind::Minus]),
+    ])));
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ArrayExpression {
-    Elements(Vec<Expression>),
-    Spread {
-        element: Box<Expression>,
-        length: Box<Expression>,
-    },
-}
+    lass_bin_take!(expr_product, expr_exponent, |this| Ok(this.switch_seq(&[
+        (BinaryOperator::Multiply, &[TokenKind::Star]),
+        (BinaryOperator::Divide, &[TokenKind::Slash]),
+        (BinaryOperator::Remainder, &[TokenKind::Percent]),
+    ])));
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct CompoundExpression {
-    pub fields: Vec<CompoundExpressionField>,
-}
+    lass_bin_take!(expr_exponent, expr_unary, |this| Ok(this
+        .take_seq(&[TokenKind::DoubleStar])
+        .then_some(BinaryOperator::Exponent)));
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct CompoundExpressionField {
-    pub target_field: Ident,
-    pub expression: Expression,
-}
+    pub fn expr_unary(&mut self) -> Result<Expression, ParseError> {
+        let uop = self.peek().eof()?;
+        if matches!(
+            uop.kind,
+            TokenKind::Plus | TokenKind::Minus | TokenKind::Bang | TokenKind::Tilde
+        ) {
+            self.skip();
+            let operator = match uop.kind {
+                TokenKind::Plus => UnaryOperator::Positive,
+                TokenKind::Minus => UnaryOperator::Negative,
+                TokenKind::Bang => UnaryOperator::LogicalNot,
+                TokenKind::Tilde => UnaryOperator::BitwiseNot,
+                _ => unreachable!(),
+            };
+            self.take_whitespace(true);
+            let value = Box::new(self.expr_unary()?);
+            self.take_whitespace(true);
+            Ok(Expression::Unary(UnaryExpr { operator, value }))
+        } else {
+            self.expr_path(Self::expr_call)
+        }
+    }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct CallExpression {
-    pub receiver: Box<Expression>,
-    pub arguments: Vec<Expression>,
+    pub fn expr_call(&mut self) -> Result<Expression, ParseError> {
+        let expr = self.expr_path(Self::expr_maxprec)?;
+        self.take_whitespace(true);
+        let Some(possible) = self.peek() else {
+            return Ok(expr);
+        };
+        if possible.kind == TokenKind::OpenParen {
+            // open param
+            self.skip();
+            let mut args = SmallVec::<[Expression; 4]>::new();
+            loop {
+                args.push(self.expression()?);
+                self.take_whitespace(true);
+                let next = self.peek().eof()?;
+                match next.kind {
+                    TokenKind::Comma => {
+                        self.skip();
+                        self.take_whitespace(true);
+                        let next = self.peek().eof()?;
+                        if next.kind == TokenKind::CloseParen {
+                            self.skip();
+                            break;
+                        }
+                        continue;
+                    }
+                    TokenKind::CloseParen => {
+                        self.skip();
+                        break;
+                    }
+                    _ => todo!("recover from unexpected before close paren in call expr"),
+                }
+            }
+            Ok(CallExpr::new_e(expr, args).into())
+        } else {
+            Ok(expr)
+        }
+    }
+
+    // aka. field
+    pub fn expr_path(
+        &mut self,
+        next: fn(&mut Self) -> Result<Expression, ParseError>,
+    ) -> Result<Expression, ParseError> {
+        let res = next(self)?;
+        self.take_whitespace(true);
+        let Some(next_tok) = self.peek() else {
+            return Ok(res);
+        };
+        if next_tok.kind == TokenKind::Dot {
+            // take the dot
+            self.skip();
+            // TODO: make less recursive. also fix this, this doesn't work for complicated syntax.
+            let x = self.qpath()?;
+
+            Ok(PathExpr::new_e(res, x.0).into())
+        } else {
+            Ok(res)
+        }
+    }
+
+    pub fn expr_maxprec(&mut self) -> Result<Expression, ParseError> {
+        let tok = self.peek().eof()?;
+
+        println!("maxprec got {tok:?}");
+
+        match tok.kind {
+            // either:
+            // 1. "if" or some other funky expression
+            // 2. a variable
+            // 3. true/false/nan/infinity/etc.
+            TokenKind::Ident => {
+                use LiteralExpr as LitExp;
+                let ident = self.token_to_ident(tok);
+                self.take_whitespace(true);
+                Ok(match ident {
+                    // variable/scope
+                    Ident::Id(_) => {
+                        self.skip();
+                        Expression::Access(ident)
+                    }
+                    Ident::Keyword(Keyword::If) => expression_unimplemented!(),
+
+                    Ident::Keyword(Keyword::True) => LitExp::Bool(true).into(),
+                    Ident::Keyword(Keyword::False) => LitExp::Bool(false).into(),
+                    Ident::Keyword(Keyword::Nan) => LitExp::Nan.into(),
+                    Ident::Keyword(Keyword::Inf) => LitExp::Inf.into(),
+                    Ident::Keyword(Keyword::Pi) => LitExp::Pi.into(),
+                    Ident::Keyword(Keyword::Tau) => LitExp::Tau.into(),
+
+                    // Ident::Keyword(
+                    //     Keyword::Loop
+                    //     | Keyword::Filter
+                    //     | Keyword::Flatten
+                    //     | Keyword::Fold
+                    //     | Keyword::Reverse
+                    //     | Keyword::Append
+                    //     | Keyword::Prepend
+                    //     | Keyword::Join
+                    //     | Keyword::Map,
+                    // ) => Expression::Unimplemented,
+                    Ident::Keyword(_) => {
+                        return Err(ParseError::UnexpectedToken {
+                            token: tok.kind,
+                            at: self.pos(),
+                        });
+                    }
+                })
+            }
+            // number
+            TokenKind::Literal(literal_kind) => {
+                use LiteralExpr::*;
+                let tks = self.str_from_token(tok);
+                self.skip();
+                Ok(Expression::Literal(match literal_kind {
+                    LiteralKind::Int(Base::Decimal) => Number(tks.parse().unwrap()),
+                    LiteralKind::Int(_) => Integer(tks.parse().unwrap()),
+                    LiteralKind::Float => Decimal(tks.parse().unwrap()),
+                }))
+            }
+            // group
+            TokenKind::OpenParen => {
+                self.skip();
+                self.take_whitespace(true);
+                let expr = self.expression()?;
+                self.take_whitespace(true);
+                self.expect(TokenKind::CloseParen)?;
+                Ok(Expression::Paren(expr.into()))
+            }
+            // block
+            TokenKind::OpenBrace => todo!("expression block"),
+            TokenKind::OpenDoubleBrace => todo!("object block"),
+            TokenKind::OpenBracket => todo!("array init"),
+            _ => Ok(expression_unimplemented!()),
+        }
+    }
 }

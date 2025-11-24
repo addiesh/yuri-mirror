@@ -82,9 +82,9 @@ pub enum TypeValue {
     Unreachable,
 }
 
-impl ParseLower<TypeValue> for yuri_parser::types::WrittenTy {
+impl ParseLower<TypeValue> for yuri_ast::types::WrittenTy {
     fn lower(&self) -> TypeValue {
-        use yuri_parser::types::WrittenTy;
+        use yuri_ast::types::WrittenTy;
         match self {
             WrittenTy::Bool => TypeValue::Primitive(Primitive::Bool(None)),
             WrittenTy::Scalar(scalar_ty) => todo!(),
@@ -110,6 +110,7 @@ impl ParseLower<TypeValue> for yuri_parser::types::WrittenTy {
                     .collect(),
             })),
             WrittenTy::Alias(qpath) => TypeValue::Alias(Resolution::Unresolved(qpath.clone())),
+            WrittenTy::Enum => todo!("lower enum type"),
         }
     }
 }

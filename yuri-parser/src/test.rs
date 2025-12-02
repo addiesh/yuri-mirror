@@ -1,12 +1,16 @@
 use thin_vec::thin_vec;
-
-use yuri_ast::expression::{BinaryExpr, CallExpr, Expression, LiteralExpr, PathExpr, UnaryExpr};
+use yuri_ast::expression::{
+    BinaryExpr, BlockExpr, CallExpr, Expression, LiteralExpr, PathExpr, UnaryExpr,
+};
+use yuri_ast::item::{FunctionItem, OuterDeclaration};
+use yuri_ast::types::WrittenTy;
 use yuri_ast::{InStorage, Qpath};
-use yuri_common::{BinaryOperator, UnaryOperator};
+use yuri_common::{BinaryOperator, FloatBits, ScalarTy, UnaryOperator};
 
-use crate::ParseState;
+use crate::Ast;
+use crate::{ParseState, parse_all};
 
-macro_rules! parse_assert {
+macro_rules! parse_expression_test {
     { $test_name:ident, $source:expr, $expect:expr } => {
         #[test]
         fn $test_name() {
@@ -42,7 +46,35 @@ macro_rules! parse_assert {
     };
 }
 
-parse_assert! {
+macro_rules! parse_test {
+    { $test_name:ident, $source:expr, $expect:expr } => {
+        #[test]
+        fn $test_name() {
+            let source = $source;
+            let tokens: Box<[_]> = yuri_lexer::tokenize(source).collect();
+            let mut storage = InStorage::default();
+
+            for tok in &tokens {
+                println!(" - {tok:?}");
+            }
+
+            let (ast, errors, mut state) = parse_all(source, &mut storage, &tokens);
+
+            if !errors.is_empty() {
+                eprintln!("parse errors!");
+                for error in errors {
+                    eprintln!(" - {error}");
+                }
+                panic!();
+            }
+            let expected: fn(state: &mut ParseState) -> Ast = $expect;
+            assert_eq!(ast, expected(&mut state));
+            println!("{ast:?}");
+        }
+    };
+}
+
+parse_expression_test! {
     simple_equality,
     "x == y",
     |state| {
@@ -54,7 +86,7 @@ parse_assert! {
     }
 }
 
-parse_assert! {
+parse_expression_test! {
     grouped_simple_equality,
     "(x == y)",
     |state| {
@@ -66,7 +98,7 @@ parse_assert! {
     }
 }
 
-parse_assert! {
+parse_expression_test! {
     grouped_simple_equality_equality,
     "(x == y) != z",
     |state| {
@@ -82,7 +114,7 @@ parse_assert! {
     }
 }
 
-parse_assert! {
+parse_expression_test! {
     function_call,
     "floor(1.0)",
     |state| {
@@ -93,7 +125,7 @@ parse_assert! {
     }
 }
 
-parse_assert! {
+parse_expression_test! {
     field_access,
     "x.y.z",
     |state| {
@@ -107,7 +139,7 @@ parse_assert! {
     }
 }
 
-parse_assert! {
+parse_expression_test! {
     field_access_unary,
     "+x.y.z",
     |state| {
@@ -124,7 +156,7 @@ parse_assert! {
     }
 }
 
-parse_assert! {
+parse_expression_test! {
     method_call,
     "x.y(1.0)",
     |state| {
@@ -138,7 +170,7 @@ parse_assert! {
     }
 }
 
-parse_assert! {
+parse_expression_test! {
     method_call_and_field,
     "x.y(1.0).xyz",
     |state| {
@@ -157,7 +189,7 @@ parse_assert! {
     }
 }
 
-parse_assert! {
+parse_expression_test! {
     complicated_expression,
     "1 + 2 * 3 / 4 == 5 or 6 != +~7",
     |_| {
@@ -193,4 +225,19 @@ parse_assert! {
             )
         )
     }
+}
+
+parse_test! {
+    simple_function,
+    "fn main(): f32 {}",
+    |state| vec![
+        FunctionItem {
+            attributes: vec![],
+            export: false,
+            name: state.str_to_ident("main"),
+            parameters: vec![],
+            return_type: WrittenTy::Scalar(ScalarTy::Float(FloatBits::Float32)),
+            body: BlockExpr { statements: vec![] }
+        }.into()
+    ]
 }

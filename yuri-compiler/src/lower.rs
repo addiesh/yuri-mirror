@@ -143,7 +143,7 @@ impl<'src, 'storage, 'at> Lowerer<'src, 'storage, 'at> {
 
                             scope.items.push(ScopeItem::Function(function));
                         }
-                        OuterDeclaration::Alias(type_alias_item) => todo!(),
+                        OuterDeclaration::TypeAlias(type_alias_item) => todo!(),
                         OuterDeclaration::Import(ident) => todo!(),
                     }
                 }

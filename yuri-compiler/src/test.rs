@@ -26,7 +26,7 @@ fn test(uv: f2): mat2 {
     let tokens: Box<[_]> = yuri_lexer::tokenize(source).collect();
     let mut storage = InStorage::default();
 
-    let (ast, errors) = yuri_parser::parse_all(source, &mut storage, &tokens);
+    let (ast, errors, _state) = yuri_parser::parse_all(source, &mut storage, &tokens);
     if !errors.is_empty() {
         panic!("Parser returned errors: {errors:?}");
     }

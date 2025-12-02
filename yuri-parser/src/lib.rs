@@ -120,11 +120,11 @@ pub struct TokenF {
     pub len: u32,
 }
 
-pub fn parse_all<'src>(
+pub fn parse_all<'src, 'storage>(
     source: &'src str,
-    storage: &mut InStorage,
+    storage: &'storage mut InStorage,
     tokens: &'src [Token],
-) -> (Ast, Vec<ParseError>) {
+) -> (Ast, Vec<ParseError>, ParseState<'src, 'storage>) {
     let mut state = ParseState {
         storage,
         source,
@@ -151,10 +151,10 @@ pub fn parse_all<'src>(
         }
     }
 
-    (declarations, errors)
+    (declarations, errors, state)
 }
 
-struct ParseState<'src, 'storage> {
+pub struct ParseState<'src, 'storage> {
     storage: &'storage mut InStorage,
     source: &'src str,
     tokens: &'src [yuri_lexer::Token],
@@ -307,10 +307,6 @@ impl<'src> ParseState<'src, '_> {
         }
     }
 
-    fn take_delimited(&mut self, open: TokenKind, close: TokenKind) {
-        todo!()
-    }
-
     /// Eats tokens until encountering any one of the anchor sequences,
     /// in which it does not consume the sequence and returns the first character of the sequence encountered.
     /// If EOF is reached, None is returned.
@@ -327,6 +323,13 @@ impl<'src> ParseState<'src, '_> {
         }
     }
 
+    fn unexpected(&self) -> ParseError {
+        ParseError::UnexpectedToken {
+            token: self.peek().unwrap().kind,
+            at: self.pos(),
+        }
+    }
+
     /// Like [take], but returns [ParseError::UnexpectedToken]
     /// and doesn't consume the token if the result is unexpected.
     /// Returns [ParseError::Eof] if there are no more tokens left.
@@ -335,10 +338,7 @@ impl<'src> ParseState<'src, '_> {
         if tok.kind == kind {
             Ok(self.take().unwrap())
         } else {
-            Err(ParseError::UnexpectedToken {
-                token: tok.kind,
-                at: self.pos(),
-            })
+            Err(self.unexpected())
         }
     }
 

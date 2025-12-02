@@ -1,5 +1,7 @@
 use smallvec::SmallVec;
-use yuri_ast::expression::{BinaryExpr, CallExpr, Expression, LiteralExpr, PathExpr, UnaryExpr};
+use yuri_ast::expression::{
+    BinaryExpr, BlockExpr, CallExpr, CompoundExpr, Expression, LiteralExpr, PathExpr, UnaryExpr,
+};
 use yuri_ast::{Ident, Keyword, Qpath, expression_unimplemented};
 
 use yuri_common::{BinaryOperator, UnaryOperator};
@@ -306,10 +308,26 @@ impl<'src> ParseState<'src, '_> {
                 Ok(Expression::Paren(expr.into()))
             }
             // block
-            TokenKind::OpenBrace => todo!("expression block"),
-            TokenKind::OpenDoubleBrace => todo!("object block"),
+            TokenKind::OpenBrace => self.expr_block().map(Into::into),
+            TokenKind::OpenDoubleBrace => self.expr_compound_init().map(Into::into),
             TokenKind::OpenBracket => todo!("array init"),
             _ => Ok(expression_unimplemented!()),
         }
+    }
+
+    pub fn expr_block(&mut self) -> Result<BlockExpr, ParseError> {
+        self.expect(TokenKind::OpenBrace)?;
+        self.take_whitespace(true);
+        eprintln!("TODO: block expression");
+        self.expect(TokenKind::CloseBrace)?;
+        Ok(BlockExpr { statements: vec![] })
+    }
+
+    pub fn expr_compound_init(&mut self) -> Result<CompoundExpr, ParseError> {
+        self.expect(TokenKind::OpenDoubleBrace)?;
+        self.take_whitespace(true);
+        eprintln!("TODO: compound init expression");
+        self.expect(TokenKind::CloseDoubleBrace)?;
+        Ok(CompoundExpr { fields: vec![] })
     }
 }

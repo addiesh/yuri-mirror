@@ -62,7 +62,7 @@ impl Display for FloatBits {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ScalarTy {
     Signed(IntBits),
     Unsigned(IntBits),

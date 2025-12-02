@@ -5,7 +5,10 @@ use rustc_hash::FxHashMap;
 use thin_vec::ThinVec;
 use yuri_common::{DimensionCount, FloatBits, IntBits};
 
-use crate::item::OuterDeclaration;
+use crate::{
+    item::OuterDeclaration,
+    types::{MatrixTy, VectorTy},
+};
 
 pub mod expression;
 pub mod item;
@@ -78,6 +81,8 @@ pub enum Keyword {
     Prepend,
     Join,
 
+    /// Can't call this "Self" so this is good enough
+    Myself,
     True,
     False,
     Nan,
@@ -86,14 +91,9 @@ pub enum Keyword {
     Tau,
 
     Not,
-    Vec {
-        dimensions: DimensionCount,
-        repr: VectorRepr,
-    },
-    Mat {
-        dimensions: MatrixDimensions,
-        bitsize: Option<FloatBits>,
-    },
+    // There are a lot of variations to the vector/matrix keywords, so we represent them using the Ty structs.
+    Vec(VectorTy),
+    Mat(MatrixTy),
 
     Float(FloatBits),
     Unsigned(IntBits),
@@ -140,6 +140,7 @@ impl Keyword {
             Self::Prepend => "prepend",
             Self::Join => "join",
 
+            Self::Myself => "self",
             Self::True => "true",
             Self::False => "false",
             Self::Nan => "NaN",
@@ -166,8 +167,8 @@ impl Keyword {
             Self::TexCube => "texcube",
             Self::TexCubeArray => "texcubearray",
 
-            Self::Vec { dimensions, repr } => {
-                let pref = format_args!("vec{dimensions}");
+            Self::Vec(VectorTy { size, repr }) => {
+                let pref = format_args!("vec{size}");
                 return match repr {
                     VectorRepr::Unsigned(None) => format!("{pref}u"),
                     VectorRepr::Signed(None) => format!("{pref}i"),
@@ -178,12 +179,9 @@ impl Keyword {
                 }
                 .into();
             }
-            Self::Mat {
-                dimensions,
-                bitsize,
-            } => {
-                let pref = format_args!("mat{dimensions}");
-                return match bitsize {
+            Self::Mat(MatrixTy { size, repr }) => {
+                let pref = format_args!("mat{size}");
+                return match repr {
                     Some(bits) => format!("{pref}f{bits}"),
                     None => format!("{pref}"),
                 }
@@ -227,6 +225,7 @@ impl Keyword {
             "prepend" => Self::Prepend,
             "join" => Self::Join,
 
+            "self" => Self::Myself,
             "true" => Self::True,
             "false" => Self::False,
             "inf" => Self::Inf,

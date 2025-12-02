@@ -36,20 +36,42 @@ pub struct FunctionItem {
     pub export: bool,
     pub name: Ident,
     pub parameters: Vec<ParameterItem>,
-    // of note, the *actual* return type is derived from the function body.
     pub return_type: WrittenTy,
     pub body: BlockExpr,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum OuterDeclaration {
     Submodule(Box<ModuleItem>),
     GlobalVariable(Box<VariableItem>),
     Function(Box<FunctionItem>),
-    Alias(Box<TypeAliasItem>),
+    TypeAlias(Box<TypeAliasItem>),
     Import(Ident),
 }
 
+macro_rules! outer_from_helper {
+    ($from:ty, $variant:ident) => {
+        impl From<$from> for OuterDeclaration {
+            fn from(value: $from) -> Self {
+                OuterDeclaration::$variant(Box::new(value))
+            }
+        }
+
+        impl From<Box<$from>> for OuterDeclaration {
+            fn from(value: Box<$from>) -> Self {
+                OuterDeclaration::$variant(value)
+            }
+        }
+    };
+}
+
+outer_from_helper!(ModuleItem, Submodule);
+outer_from_helper!(VariableItem, GlobalVariable);
+outer_from_helper!(FunctionItem, Function);
+outer_from_helper!(TypeAliasItem, TypeAlias);
+
 /// Represents a series of submodules, functions, global variables, and type aliases/definitions.
+#[derive(Debug, Clone, PartialEq)]
 pub struct ModuleItem {
     pub name: Ident,
     pub contents: Vec<OuterDeclaration>,

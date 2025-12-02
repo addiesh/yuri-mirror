@@ -1,19 +1,18 @@
 use yuri_common::{DimensionCount, FloatBits, ScalarTy};
 
 use crate::item::Attribute;
-use crate::{Ident, Qpath};
+use crate::{Ident, MatrixDimensions, Qpath, VectorRepr};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct MatrixTy {
-    pub columns: DimensionCount,
-    pub rows: DimensionCount,
-    pub bitsize: Option<FloatBits>,
+    pub size: MatrixDimensions,
+    pub repr: Option<FloatBits>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct VectorTy {
     pub size: DimensionCount,
-    pub repr: ScalarTy,
+    pub repr: VectorRepr,
 }
 
 // FUTURE: replace u32 with partial knowledge (current Yuri spec only has unknown/known)

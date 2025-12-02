@@ -1,29 +1,17 @@
-#import basic.my_frag_main
+# --------------------------------------------------
+# Basic vertex and fragment shaders in one file,
+# written in the Yuri shader language (WIP).
+# See https://git.gay/yuri/yuri for more.
+# --------------------------------------------------
 
-# test
+type VertxOutput = {{ @vert.pos out: vec4f, coord: vec2f }}
+
+@vert
+fn my_vert_main(pos: vec3f, coord: vec2f): VertexOutput {
+	{{ out = vec4f(pos, 1), pos, coord }}
+}
+
 @frag
-fn test(uv: f2): mat2 {
-
-	let variable = 0
-
-	let arrrr: [u, 8] = [variable; 8]
-
-	if false {
-		return 1
-	} else if false {
-		2
-	} else if false {
-		3
-	} else {
-		4
-	}
+fn my_frag_main(coord: vec2f): vec4f {
+    vec4f(coord, 0, 1)
 }
-
-module not_std {
-	fn test(): mat2 {
-
-	}
-}
-
-#fn a(): One {}
-#fn b(): One.Two.Three.Four {}

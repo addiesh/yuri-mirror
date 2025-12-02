@@ -44,6 +44,14 @@ macro_rules! expression_unimplemented {
     };
 }
 
+#[cfg(not(debug_assertions))]
+#[macro_export]
+macro_rules! expression_unimplemented {
+    () => {
+        todo!()
+    };
+}
+
 macro_rules! expression_from_helper {
     ($from:ty, $variant:ident) => {
         impl From<$from> for Expression {

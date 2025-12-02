@@ -1,5 +1,3 @@
-use std::f64;
-
 use smallvec::SmallVec;
 use yuri_ast::expression::{BinaryExpr, CallExpr, Expression, LiteralExpr, PathExpr, UnaryExpr};
 use yuri_ast::{Ident, Keyword, Qpath, expression_unimplemented};
@@ -249,6 +247,7 @@ impl<'src> ParseState<'src, '_> {
             // 3. true/false/nan/infinity/etc.
             TokenKind::Ident => {
                 use LiteralExpr as LitExp;
+
                 let ident = self.token_to_ident(tok);
                 self.take_whitespace(true);
                 Ok(match ident {
@@ -296,6 +295,7 @@ impl<'src> ParseState<'src, '_> {
                     LiteralKind::Float => Decimal(tks.parse().unwrap()),
                 }))
             }
+
             // group
             TokenKind::OpenParen => {
                 self.skip();

@@ -88,9 +88,7 @@ parse_assert! {
     |state| {
         CallExpr::new_e(
             Expression::Access(state.str_to_ident("floor")),
-            [
-                LiteralExpr::Decimal(1.0),
-            ],
+            [LiteralExpr::Decimal(1.0)],
         )
     }
 }
@@ -133,13 +131,9 @@ parse_assert! {
         CallExpr::new_e(
             PathExpr::new_e(
                 Expression::Access(state.str_to_ident("x")),
-                [
-                    state.str_to_ident("y"),
-                ],
+                [state.str_to_ident("y")],
             ),
-            [
-                LiteralExpr::Decimal(1.0),
-            ],
+            [LiteralExpr::Decimal(1.0)],
         )
     }
 }
@@ -152,13 +146,9 @@ parse_assert! {
             CallExpr::new_e(
                 PathExpr::new_e(
                     Expression::Access(state.str_to_ident("x")),
-                    [
-                        state.str_to_ident("y"),
-                    ],
+                    [state.str_to_ident("y")],
                 ),
-                [
-                    LiteralExpr::Decimal(1.0),
-                ],
+                [LiteralExpr::Decimal(1.0)],
             ),
             [
                 state.str_to_ident("xyz"),

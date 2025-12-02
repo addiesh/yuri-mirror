@@ -254,6 +254,7 @@ impl ParseLower<Expression> for yuri_ast::expression::Expression {
             Exp::Compound(compound) => todo!(),
             Exp::Block(expr) => Expression::Block(expr.lower()),
             Exp::Paren(expression) => todo!(),
+            #[cfg(debug_assertions)]
             Exp::Unimplemented { file, line, column } => Expression::Unimplemented {
                 file,
                 line: *line,

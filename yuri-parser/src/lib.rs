@@ -124,7 +124,7 @@ pub fn parse_all<'src, 'storage>(
     source: &'src str,
     storage: &'storage mut InStorage,
     tokens: &'src [Token],
-) -> (Ast, Vec<ParseError>, ParseState<'src, 'storage>) {
+) -> (Ast, ParseState<'src, 'storage>) {
     let mut state = ParseState {
         storage,
         source,
@@ -135,7 +135,6 @@ pub fn parse_all<'src, 'storage>(
     };
 
     let mut declarations = Vec::new();
-    let mut errors = Vec::new();
 
     loop {
         if !state.has() {
@@ -147,11 +146,11 @@ pub fn parse_all<'src, 'storage>(
         // TODO: use error recovery instead, this will error forever on an unexpected token.
         match state.outer_declaration() {
             Ok(decl) => declarations.push(decl),
-            Err(err) => errors.push(err),
+            Err(err) => state.errors.push(err),
         }
     }
 
-    (declarations, errors, state)
+    (declarations, state)
 }
 
 pub struct ParseState<'src, 'storage> {
@@ -159,7 +158,7 @@ pub struct ParseState<'src, 'storage> {
     source: &'src str,
     tokens: &'src [yuri_lexer::Token],
     byte_offset: u32,
-    errors: Vec<ParseError>,
+    pub errors: Vec<ParseError>,
     // hints: Vec<ParseHint>
     index: usize,
 }
@@ -180,10 +179,12 @@ impl<'src> ParseState<'src, '_> {
         self.storage.to_ident(self.str_from_token(token))
     }
 
+    #[must_use]
     fn pos(&self) -> u32 {
         self.index as u32
     }
 
+    #[must_use]
     fn peek(&self) -> Option<TokenF> {
         self.tokens.get(self.index).map(|tok| TokenF {
             kind: tok.kind,
@@ -192,6 +193,7 @@ impl<'src> ParseState<'src, '_> {
         })
     }
 
+    #[must_use]
     fn peek_off(&self, offset: usize) -> Option<TokenF> {
         if offset == 0 {
             return self.peek();
@@ -214,6 +216,7 @@ impl<'src> ParseState<'src, '_> {
         })
     }
 
+    #[must_use]
     fn take(&mut self) -> Option<TokenF> {
         let tok = self.peek()?;
         self.skip();
@@ -286,6 +289,7 @@ impl<'src> ParseState<'src, '_> {
     }
 
     // Returns the offset to the next non-whitespace token, and what kind of token it is.
+    #[must_use]
     fn peek_whitespace(
         &mut self,
         mut offset: usize,
@@ -333,6 +337,7 @@ impl<'src> ParseState<'src, '_> {
     /// Like [take], but returns [ParseError::UnexpectedToken]
     /// and doesn't consume the token if the result is unexpected.
     /// Returns [ParseError::Eof] if there are no more tokens left.
+    #[must_use]
     fn expect(&mut self, kind: TokenKind) -> Result<TokenF, ParseError> {
         let tok = self.peek().eof()?;
         if tok.kind == kind {

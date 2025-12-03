@@ -1,4 +1,4 @@
-use crate::{Yrc, resolution::Resolution};
+use crate::{expression::Expression, resolution::Resolution};
 
 /// Provides a "compiler plugin" that works on attribute semantics.
 pub trait AttributeProvider: Send + Sync + Unpin + 'static {
@@ -11,7 +11,7 @@ pub trait AttributeProvider: Send + Sync + Unpin + 'static {
 pub struct Attribute {
     // attributes will be weird.
     pub path: Resolution<()>,
-    pub _todo_params: Option<Vec<()>>,
+    pub params: Vec<Expression>,
 }
 
 impl PartialEq for Attribute {

@@ -1,8 +1,8 @@
-use smallvec::SmallVec;
 use yuri_ast::expression::{
-    BinaryExpr, BlockExpr, CallExpr, CompoundExpr, Expression, LiteralExpr, PathExpr, UnaryExpr,
+    BinaryExpr, BlockExpr, BlockStatement, CallExpr, CompoundExpr, Expression, FieldExpr,
+    LiteralExpr, UnaryExpr,
 };
-use yuri_ast::{Ident, Keyword, Qpath, expression_unimplemented};
+use yuri_ast::{Ident, Keyword, expression_unimplemented};
 
 use yuri_common::{BinaryOperator, UnaryOperator};
 use yuri_lexer::TokenKind;
@@ -185,34 +185,40 @@ impl<'src> ParseState<'src, '_> {
         };
         if possible.kind == TokenKind::OpenParen {
             // open param
-            self.skip();
-            let mut args = SmallVec::<[Expression; 4]>::new();
-            loop {
-                args.push(self.expression()?);
-                self.take_whitespace(true);
-                let next = self.peek().eof()?;
-                match next.kind {
-                    TokenKind::Comma => {
-                        self.skip();
-                        self.take_whitespace(true);
-                        let next = self.peek().eof()?;
-                        if next.kind == TokenKind::CloseParen {
-                            self.skip();
-                            break;
-                        }
-                        continue;
-                    }
-                    TokenKind::CloseParen => {
-                        self.skip();
-                        break;
-                    }
-                    _ => todo!("recover from unexpected before close paren in call expr"),
-                }
-            }
+            let args = self.call()?;
             Ok(CallExpr::new_e(expr, args).into())
         } else {
             Ok(expr)
         }
+    }
+
+    pub fn call(&mut self) -> Result<Vec<Expression>, ParseError> {
+        self.expect(TokenKind::OpenParen)?;
+        let mut args = Vec::<Expression>::new();
+        self.take_whitespace(true);
+        loop {
+            args.push(self.expression()?);
+            self.take_whitespace(true);
+            let next = self.peek().eof()?;
+            match next.kind {
+                TokenKind::Comma => {
+                    self.skip();
+                    self.take_whitespace(true);
+                    let next = self.peek().eof()?;
+                    if next.kind == TokenKind::CloseParen {
+                        self.skip();
+                        break;
+                    }
+                    continue;
+                }
+                TokenKind::CloseParen => {
+                    self.skip();
+                    break;
+                }
+                _ => todo!("recover from unexpected before close paren in call expr"),
+            }
+        }
+        Ok(args)
     }
 
     // aka. field
@@ -231,7 +237,7 @@ impl<'src> ParseState<'src, '_> {
             // TODO: make less recursive. also fix this, this doesn't work for complicated syntax.
             let x = self.qpath()?;
 
-            Ok(PathExpr::new_e(res, x.0).into())
+            Ok(FieldExpr::new_e(res, x.0).into())
         } else {
             Ok(res)
         }
@@ -253,11 +259,6 @@ impl<'src> ParseState<'src, '_> {
                 let ident = self.token_to_ident(tok);
                 self.take_whitespace(true);
                 Ok(match ident {
-                    // variable/scope
-                    Ident::Id(_) => {
-                        self.skip();
-                        Expression::Access(ident)
-                    }
                     Ident::Keyword(Keyword::If) => expression_unimplemented!(),
 
                     Ident::Keyword(Keyword::True) => LitExp::Bool(true).into(),
@@ -267,22 +268,33 @@ impl<'src> ParseState<'src, '_> {
                     Ident::Keyword(Keyword::Pi) => LitExp::Pi.into(),
                     Ident::Keyword(Keyword::Tau) => LitExp::Tau.into(),
 
-                    // Ident::Keyword(
-                    //     Keyword::Loop
-                    //     | Keyword::Filter
-                    //     | Keyword::Flatten
-                    //     | Keyword::Fold
-                    //     | Keyword::Reverse
-                    //     | Keyword::Append
-                    //     | Keyword::Prepend
-                    //     | Keyword::Join
-                    //     | Keyword::Map,
-                    // ) => Expression::Unimplemented,
-                    Ident::Keyword(_) => {
-                        return Err(ParseError::UnexpectedToken {
-                            token: tok.kind,
-                            at: self.pos(),
-                        });
+                    Ident::Keyword(
+                        Keyword::Loop
+                        | Keyword::Filter
+                        | Keyword::Flatten
+                        | Keyword::Fold
+                        | Keyword::Reverse
+                        | Keyword::Append
+                        | Keyword::Prepend
+                        | Keyword::Join
+                        | Keyword::Map,
+                    ) => return Ok(expression_unimplemented!()),
+
+                    Ident::Keyword(
+                        Keyword::Break
+                        | Keyword::Continue
+                        | Keyword::Return
+                        | Keyword::Export
+                        | Keyword::Fn
+                        | Keyword::Let
+                        | Keyword::Type
+                        | Keyword::Else,
+                    ) => return Err(self.unexpected()),
+
+                    //
+                    _ => {
+                        self.skip();
+                        Expression::Access(ident)
                     }
                 })
             }
@@ -292,8 +304,10 @@ impl<'src> ParseState<'src, '_> {
                 let tks = self.str_from_token(tok);
                 self.skip();
                 Ok(Expression::Literal(match literal_kind {
-                    LiteralKind::Int(Base::Decimal) => Number(tks.parse().unwrap()),
-                    LiteralKind::Int(_) => Integer(tks.parse().unwrap()),
+                    LiteralKind::Int(Base::Decimal) => Integer(tks.parse().unwrap()),
+                    LiteralKind::Int(Base::Binary) => BinInt(tks.parse().unwrap()),
+                    LiteralKind::Int(Base::Hexadecimal) => HexInt(tks.parse().unwrap()),
+                    LiteralKind::Int(Base::Octal) => todo!("octal literal"),
                     LiteralKind::Float => Decimal(tks.parse().unwrap()),
                 }))
             }
@@ -317,10 +331,74 @@ impl<'src> ParseState<'src, '_> {
 
     pub fn expr_block(&mut self) -> Result<BlockExpr, ParseError> {
         self.expect(TokenKind::OpenBrace)?;
-        self.take_whitespace(true);
         eprintln!("TODO: block expression");
+
+        let mut statements = Vec::new();
+
+        loop {
+            self.take_whitespace(true);
+
+            let tok = self.peek().eof()?;
+            println!("block statement start: {tok:?}");
+
+            if tok.kind == TokenKind::CloseBrace {
+                break;
+            }
+
+            // LocalVariable => ident
+            // TypeAlias => ident
+            // Function => ident
+            // Assign => ident
+            // Return => ident
+            // Import => ident
+            // Expression => (anything)
+            if tok.kind == TokenKind::Ident {
+                let ident = self.token_to_ident(tok);
+                match ident {
+                    Ident::Keyword(Keyword::Fn) => match self.function(false, vec![]) {
+                        Ok(func) => {
+                            statements.push(BlockStatement::Function(func));
+                            continue;
+                        }
+                        Err(err) => {
+                            self.errors.push(err);
+                            self.recover(&[&[TokenKind::Newline]]);
+                        }
+                    },
+                    // be annoying but keep going
+                    Ident::Keyword(Keyword::Export) => {
+                        self.errors.push(self.unexpected());
+                        self.skip();
+                        continue;
+                    }
+                    Ident::Keyword(Keyword::Let) => match self.variable() {
+                        Ok(var) => statements.push(BlockStatement::LocalVariable(var.into())),
+                        Err(err) => {
+                            self.errors.push(err);
+                            self.recover(&[&[TokenKind::Newline]]);
+                        }
+                    },
+                    Ident::Keyword(Keyword::Type) => todo!(),
+                    Ident::Keyword(Keyword::Import) => todo!(),
+                    _ => { /* do nothing */ }
+                }
+            }
+
+            // fallthrough, try expression
+            match self.expression() {
+                Ok(expr) => {
+                    println!("got expression: {expr:?}");
+                    statements.push(BlockStatement::Expression(expr.into()))
+                }
+                Err(err) => {
+                    self.errors.push(err);
+                    self.recover(&[&[TokenKind::Newline]]);
+                }
+            }
+        }
+
         self.expect(TokenKind::CloseBrace)?;
-        Ok(BlockExpr { statements: vec![] })
+        Ok(BlockExpr { statements })
     }
 
     pub fn expr_compound_init(&mut self) -> Result<CompoundExpr, ParseError> {

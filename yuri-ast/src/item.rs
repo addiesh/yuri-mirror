@@ -5,7 +5,7 @@ use crate::{Ident, Qpath};
 #[derive(Debug, Clone, PartialEq)]
 pub struct Attribute {
     pub path: Qpath,
-    pub params: Option<Vec<()>>,
+    pub args: Option<Vec<Expression>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -46,7 +46,7 @@ pub enum OuterDeclaration {
     GlobalVariable(Box<VariableItem>),
     Function(Box<FunctionItem>),
     TypeAlias(Box<TypeAliasItem>),
-    Import(Ident),
+    Import(Qpath),
 }
 
 macro_rules! outer_from_helper {

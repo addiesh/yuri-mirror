@@ -12,7 +12,7 @@ pub enum Expression {
     /// We can't really figure out which until resolution.
     Access(Ident),
     /// Field lookup.
-    Path(PathExpr),
+    Field(FieldExpr),
     /// A value to be evaluated at compile-time.
     Literal(LiteralExpr),
     Unary(UnaryExpr),
@@ -67,7 +67,7 @@ macro_rules! expression_from_helper {
         }
     };
 }
-expression_from_helper!(PathExpr, Path);
+expression_from_helper!(FieldExpr, Field);
 expression_from_helper!(LiteralExpr, Literal);
 expression_from_helper!(UnaryExpr, Unary);
 expression_from_helper!(BinaryExpr, Binary);
@@ -87,12 +87,12 @@ impl Display for Expression {
 /// The receiver is the expression to look up the following fields on.
 /// While PathExpr could be recursive, it's faster and more size-efficient to use an array.
 #[derive(Debug, Clone, PartialEq)]
-pub struct PathExpr {
+pub struct FieldExpr {
     pub receiver: Box<Expression>,
     pub fields: ThinVec<Ident>,
 }
 
-impl PathExpr {
+impl FieldExpr {
     #[inline]
     pub fn new_e(
         receiver: impl Into<Expression>,
@@ -110,8 +110,6 @@ impl PathExpr {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LiteralExpr {
     Bool(bool),
-    /// Known to be a float (i.e. decimal point)
-    Decimal(f64),
     /// Math constant; the ratio between the circumference and the diameter of a circle.
     Pi,
     /// Math constant; the ratio between the circumference and the radius of a circle.
@@ -120,11 +118,12 @@ pub enum LiteralExpr {
     Inf,
     /// Not a number. Used instead of storing NAN in the decimal variant for clarity.
     Nan,
-    // TODO: improve this specificity
-    /// Known to be an integer (i.e. non-decimal base)
-    Integer(i128),
+    HexInt(u64),
+    BinInt(u64),
+    /// Known to be a float (i.e. decimal point)
+    Decimal(f64),
     /// May be coerced to any possible type
-    Number(i128),
+    Integer(u64),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -183,7 +182,7 @@ pub enum BlockStatement {
     Assign(Qpath, Box<Expression>),
     Return(Box<Expression>),
     Import(Ident),
-    Value(Box<Expression>),
+    Expression(Box<Expression>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -244,7 +243,7 @@ pub struct CompoundExpressionField {
 pub struct CallExpr {
     /// The function to call, usually a [VariableExpr], [PathExpr], [LiteralExpr], or another [CallExpr].
     pub receiver: Box<Expression>,
-    pub arguments: ThinVec<Expression>,
+    pub arguments: Vec<Expression>,
 }
 
 impl CallExpr {

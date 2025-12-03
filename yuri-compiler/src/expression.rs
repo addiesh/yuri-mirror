@@ -18,16 +18,29 @@ mod sealed {
 }
 
 /// Local block element.
+#[derive(Clone, Debug)]
 pub enum BlockStatement {
+    /// Import a symbol into the scope.
     Import(Qpath),
-    Variable(Ywk<VariableItem>),
-    TypeAlias(Ywk<TypeAliasItem>),
-    Function(Ywk<FunctionItem>),
-    Assign(Qpath, Expression),
+    /// Declare a local variable
+    VariableDecl(Ywk<VariableItem>),
+    /// Declare a locally-available type alias.
+    TypeAliasDecl(Ywk<TypeAliasItem>),
+    /// Declare a locally-available function.
+    FunctionDecl(Ywk<FunctionItem>),
+    /// Assign a value to a local variable.
+    Assign(Resolution<Ywk<VariableItem>>, Expression),
+    /// Exit from the parent function early, returning the provided value.
     Return(Expression),
+    /// Tail expression (or unused expression, but those only matter for control flow expressions.)
     Expression(Expression),
+
+    // TODO
+    Break(Option<Expression>),
+    Continue(Option<Expression>),
 }
 
+#[derive(Clone, Debug)]
 pub struct BlockExpression {
     /// The scope that this block creates.
     pub scope: Yrc<Scope>,
@@ -51,7 +64,7 @@ impl ParseLower<BlockExpression> for yuri_ast::expression::BlockExpr {
                         BlockStatement::Function(function_item) => todo!(),
                         BlockStatement::Return(expression) => todo!(),
                         BlockStatement::Import(ident) => todo!(),
-                        BlockStatement::Value(expression) => todo!(),
+                        BlockStatement::Expression(expression) => todo!(),
                         BlockStatement::Assign(qpath, expression) => todo!(),
                     }
                 })
@@ -72,6 +85,7 @@ impl<'src> sealed::ExpressionTrait<'src> for BlockExpression {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct IfExpression {
     pub consequence: BlockExpression,
     pub condition: Box<Expression>,
@@ -84,12 +98,14 @@ impl<'a> sealed::ExpressionTrait<'a> for IfExpression {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct ElseChain {
     pub consequence: BlockExpression,
     pub condition: Option<Box<Expression>>,
     pub chained_else: Option<Box<ElseChain>>,
 }
 
+#[derive(Clone, Debug)]
 pub struct UnaryExpression {
     pub operator: UnaryOperator,
     pub value: Box<Expression>,
@@ -107,6 +123,7 @@ impl<'src> sealed::ExpressionTrait<'src> for UnaryExpression {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct BinaryExpression {
     pub operator: BinaryOperator,
     pub lhs: Box<Expression>,
@@ -119,7 +136,11 @@ impl<'src> sealed::ExpressionTrait<'src> for BinaryExpression {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct CallExpression {
+    /// The receiving expression, if this is a method call.
+    /// For builtin constructors, module resolutions, or non-method functions, this is None.
+    pub receiver: Option<Box<Expression>>,
     pub function: Resolution<Ywk<FunctionItem>>,
     pub arguments: Vec<Expression>,
 }
@@ -130,6 +151,7 @@ impl<'src> sealed::ExpressionTrait<'src> for CallExpression {
     }
 }
 
+#[derive(Clone, Debug)]
 pub enum ArrayExpression {
     Elements(Vec<Expression>),
     Spread {
@@ -145,10 +167,12 @@ impl<'src> sealed::ExpressionTrait<'src> for ArrayExpression {
 }
 
 // Because of duck-typing, compound expression types in codegen
+#[derive(Clone, Debug)]
 pub struct CompoundExpression {
     pub fields: Vec<CompoundExpressionField>,
 }
 
+#[derive(Clone, Debug)]
 pub struct CompoundExpressionField {
     pub target_field: Ident,
     pub expression: Expression,
@@ -166,17 +190,15 @@ impl<'src> sealed::ExpressionTrait<'src> for Resolution<Ywk<VariableItem>> {
     }
 }
 
+#[derive(Clone, Debug)]
 pub enum LiteralExpr {
     Bool(bool),
-    /// A numeric literal with an explicit decimal point
+    /// A numeric literal with either an explicit decimal point or using scientific notation.
     Decimal(f64),
     /// An integer with no sign, decimal point, or fancy notation.
     Integer(u64),
-
-    /// idk figure this out
-    UnsignReqInt(u64),
-    /// An integer with an explicitly specified sign.
-    SignReqInt(i64),
+    BinInt(u64),
+    HexInt(u64),
 }
 
 impl<'a> sealed::ExpressionTrait<'a> for LiteralExpr {
@@ -186,23 +208,45 @@ impl<'a> sealed::ExpressionTrait<'a> for LiteralExpr {
             LiteralExpr::Bool(b) => Primitive::Bool(Some(*b)),
             LiteralExpr::Decimal(d) => Primitive::Scalar(Scalar::FloatX(Some(*d))),
             LiteralExpr::Integer(i) => Primitive::Scalar(Scalar::UnsignedX(Some(*i))),
-            LiteralExpr::UnsignReqInt(u) => Primitive::Scalar(Scalar::UnsignedX(Some(*u))),
-            LiteralExpr::SignReqInt(s) => Primitive::Scalar(Scalar::SignedX(Some(*s))),
+            LiteralExpr::HexInt(u) | LiteralExpr::BinInt(u) => {
+                Primitive::Scalar(Scalar::UnsignedX(Some(*u)))
+            }
         }))
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct FieldExpr {
+    pub receiver: Box<Expression>,
+    pub field_name: Ident,
+}
+
+impl<'a> sealed::ExpressionTrait<'a> for FieldExpr {
+    fn try_get_typeval(&self) -> Result<TypeValue, CompileError<'a>> {
+        let receiver_tv = self.receiver.try_get_typeval()?;
+        // TODO: we can't actually determine this without everything being lowered already.
+        // Plus, we need to know the scope we're in because a function might be hoisted here.
+        todo!()
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum Expression {
+    /// A qualified variable.
     Variable(Resolution<Ywk<VariableItem>>),
+    /// A typed-out primitive value.
     Literal(LiteralExpr),
+    /// A unary expression. Currently, these are all prefixes.
     Unary(UnaryExpression),
     Binary(BinaryExpression),
     Array(ArrayExpression),
     IfExpr(IfExpression),
+    /// Field access of a concrete type. Not to be confused
+    Field(FieldExpr),
+    /// Function/method calls and "constructor" builtins.
     FunctionalCall(CallExpression),
     CompoundInit(CompoundExpression),
     Block(BlockExpression),
-    Paren(Box<Expression>),
     Invalid,
     #[cfg(debug_assertions)]
     Unimplemented {
@@ -218,14 +262,16 @@ impl ParseLower<Expression> for yuri_ast::expression::Expression {
         use yuri_ast::expression::Expression as Exp;
         use yuri_ast::expression::LiteralExpr as Lit;
         match self {
-            Exp::Path(path_expr) => todo!(),
+            Exp::Field(path_expr) => todo!(),
             Exp::Access(qpath) => {
                 Expression::Variable(todo!("Resolution::Unresolved(qpath.clone())"))
             }
             Exp::Literal(lit) => Expression::Literal(match lit {
                 Lit::Bool(b) => LiteralExpr::Bool(*b),
                 Lit::Decimal(d) => LiteralExpr::Decimal(*d),
-                Lit::Number(i) | Lit::Integer(i) => LiteralExpr::Integer(*i as _),
+                Lit::Integer(i) => LiteralExpr::Integer(*i),
+                Lit::BinInt(i) => LiteralExpr::BinInt(*i),
+                Lit::HexInt(i) => LiteralExpr::HexInt(*i),
                 Lit::Pi => todo!(),
                 Lit::Tau => todo!(),
                 Lit::Inf => todo!(),
@@ -277,7 +323,7 @@ impl<'src> sealed::ExpressionTrait<'src> for Expression {
             Expression::FunctionalCall(e) => e.try_get_typeval(),
             Expression::CompoundInit(e) => e.try_get_typeval(),
             Expression::Block(e) => e.try_get_typeval(),
-            Expression::Paren(e) => e.try_get_typeval(),
+            Expression::Field(e) => e.try_get_typeval(),
             #[cfg(debug_assertions)]
             Expression::Unimplemented { file, line, column } => {
                 panic!("unimplemented (source @ {file}:{line}:{column})")

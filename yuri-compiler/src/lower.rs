@@ -88,7 +88,7 @@ impl<'src, 'storage, 'at> Lowerer<'src, 'storage, 'at> {
                     use yuri_ast::item::OuterDeclaration;
                     match outer {
                         OuterDeclaration::Submodule(module_item) => {
-                            todo!("tail recursion")
+                            todo!("submodule tail recursion")
                             // submodules.push();
                         }
                         OuterDeclaration::GlobalVariable(variable_item) => {
@@ -143,8 +143,19 @@ impl<'src, 'storage, 'at> Lowerer<'src, 'storage, 'at> {
 
                             scope.items.push(ScopeItem::Function(function));
                         }
-                        OuterDeclaration::TypeAlias(type_alias_item) => todo!(),
-                        OuterDeclaration::Import(ident) => todo!(),
+                        OuterDeclaration::TypeAlias(type_alias_item) => {
+                            scope.items.push(ScopeItem::TypeAlias(Yrc::new(
+                                TypeAliasItem {
+                                    parent_scope: self.weak_focus(),
+                                    name: type_alias_item.name,
+                                    aliases: type_alias_item.aliases.lower(),
+                                }
+                                .into(),
+                            )));
+                        }
+                        OuterDeclaration::Import(qpath) => {
+                            scope.items.push(ScopeItem::Import(qpath.clone()));
+                        }
                     }
                 }
 
@@ -172,13 +183,38 @@ impl<'src, 'storage, 'at> Lowerer<'src, 'storage, 'at> {
             .iter()
             .map(|attrib| Attribute {
                 path: Resolution::Unresolved(attrib.path.clone()),
-                _todo_params: Default::default(),
+                params: Default::default(),
             })
             .collect()
     }
 
-    pub fn resolve_type(&self, qpath: &Qpath) -> Resolution<Ywk<TypeAliasItem>> {
-        // Resolution::Unresolved(qpath)
-        todo!()
+    pub fn resolve_type(
+        &self,
+        current_scope: Yrc<Scope>,
+        qpath: &Qpath,
+    ) -> Resolution<Ywk<TypeAliasItem>> {
+        let mut arc = current_scope;
+        let mut guard = arc.lock().unwrap();
+        loop {
+            for item in &guard.items {
+                if let ScopeItem::TypeAlias(alias) = item {
+                    return Resolution::Resolved {
+                        item_path: qpath.clone(),
+                        item: Yrc::downgrade(alias),
+                    };
+                }
+            }
+
+            if let Some(parent) = &guard.parent {
+                let t_arc = parent.upgrade().unwrap();
+                drop(guard);
+                drop(arc);
+                arc = t_arc;
+                guard = arc.lock().unwrap();
+            } else {
+                break;
+            }
+        }
+        Resolution::Unresolved(qpath.clone())
     }
 }

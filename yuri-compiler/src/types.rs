@@ -2,7 +2,7 @@ use yuri_common::{DimensionCount, FloatBits, IntBits, ScalarTy};
 
 use crate::attribute::Attribute;
 use crate::error::{ResolutionError, TypeError};
-use crate::item::TypeAliasItem;
+use crate::item::{FunctionItem, TypeAliasItem};
 use crate::resolution::Resolution;
 use crate::types::array::ArrayType;
 use crate::types::compound::{CompoundType, CompoundTypeField};
@@ -78,7 +78,10 @@ pub enum TypeValue {
     Compound(Box<CompoundType>),
     /// Resolves to another type
     Alias(Resolution<Ywk<TypeAliasItem>>),
-    /// A value that cannot exist. Anything after an expression with this type will be ignored.
+    /// A function type.
+    /// Importantly, Yuri has no way (yet) to express higher-order functions.
+    Function(Resolution<Ywk<FunctionItem>>),
+    /// A value that cannot exist.
     Unreachable,
 }
 
@@ -102,7 +105,7 @@ impl ParseLower<TypeValue> for yuri_ast::types::WrittenTy {
                             .iter()
                             .map(|attrib| Attribute {
                                 path: Resolution::Unresolved(attrib.path.clone()),
-                                _todo_params: Default::default(),
+                                params: Default::default(),
                             })
                             .collect(),
                         field_type: field.field_ty.lower(),
@@ -121,11 +124,14 @@ impl Typeable for TypeValue {
             TypeValue::Primitive(_) | TypeValue::Unreachable => true,
             TypeValue::Array(array) => array.is_resolved(),
             TypeValue::Compound(compound_type) => compound_type.is_resolved(),
-            // TODO: this part irks me
             TypeValue::Alias(Resolution::Resolved { item_path: _, item }) => {
                 item.upgrade().is_some()
             }
             TypeValue::Alias(Resolution::Unresolved(_)) => false,
+            TypeValue::Function(Resolution::Resolved { item_path: _, item }) => {
+                item.upgrade().is_some()
+            }
+            TypeValue::Function(Resolution::Unresolved(_)) => false,
         }
     }
 

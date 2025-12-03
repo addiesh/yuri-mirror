@@ -1,5 +1,6 @@
 use yuri_ast::Qpath;
 
+use crate::expression::Expression;
 use crate::item::{FunctionItem, TypeAliasItem, VariableItem};
 use crate::{Yrc, Ywk};
 
@@ -7,17 +8,21 @@ use crate::{Yrc, Ywk};
 /// be true wherever the rule is in place. This allows for, among other things,
 /// more advanced optimization. As such, this is a complicated idea to implement,
 /// so we *probably* won't be implementing it for the V1 Yuri compiler.
-pub struct ScopeRule {/* empty for now */}
+#[derive(Clone, Debug)]
+pub enum ScopeRule {
+    Predicate(Expression),
+}
 
+#[derive(Clone, Debug)]
 pub enum ScopeItem {
     Variable(Yrc<VariableItem>),
     Parameter(Yrc<VariableItem>),
     Function(Yrc<FunctionItem>),
-    Import(Yrc<Qpath>),
+    Import(Qpath),
     TypeAlias(Yrc<TypeAliasItem>),
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct Scope {
     /// - For root modules, this is None.
     /// - For function blocks, this is the block/module scope in which they are defined.

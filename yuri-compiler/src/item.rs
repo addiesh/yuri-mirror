@@ -14,6 +14,7 @@ pub struct TypeAliasItem {
 }
 
 /// Despite the name, all variables are immutable.
+#[derive(Clone, Debug)]
 pub struct VariableItem {
     pub parent_scope: Ywk<Scope>,
     pub name: Ident,
@@ -22,6 +23,7 @@ pub struct VariableItem {
     pub value: Expression,
 }
 
+#[derive(Clone, Debug)]
 pub struct ParameterItem {
     pub parent_function: Ywk<FunctionItem>,
     pub attributes: Vec<Attribute>,
@@ -30,6 +32,7 @@ pub struct ParameterItem {
     pub explicit_type: TypeValue,
 }
 
+#[derive(Clone, Debug)]
 pub struct FunctionItem {
     pub parent_scope: Ywk<Scope>,
     pub attributes: Vec<Attribute>,
@@ -41,6 +44,7 @@ pub struct FunctionItem {
 }
 
 /// Represents a series of submodules, functions, global variables, and type aliases/definitions.
+#[derive(Clone, Debug)]
 pub struct Module {
     pub parent: Option<Ywk<Module>>,
     pub name: Ident,

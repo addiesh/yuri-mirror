@@ -28,14 +28,16 @@ pub fn _test_compile<'src>(
     );
 
     let module_name_ident = storage.to_ident(&module_name);
-    let (ast, parse_errors, _state) = yuri_parser::parse_all(source, &mut storage, &tokens);
+    let (ast, state) = yuri_parser::parse_all(source, &mut storage, &tokens);
     let module = yuri_compiler::lower::lower(source, &mut storage, &ast, module_name_ident)?;
 
-    if !parse_errors.is_empty() {
-        return Err(CompileError::Multiple(
-            parse_errors.into_iter().map(CompileError::Parse).collect(),
-        ));
-    }
+    todo!("change definition of ParseState, use mutex instead of &mut");
+
+    // if !state.errors.is_empty() {
+    //     return Err(CompileError::Multiple(
+    //         state.errors.into_iter().map(CompileError::Parse).collect(),
+    //     ));
+    // }
 
     Ok(module)
     // Ok(todo!("figure out how to return the stuff to the caller"))

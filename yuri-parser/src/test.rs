@@ -1,11 +1,11 @@
 use thin_vec::thin_vec;
 use yuri_ast::expression::{
-    BinaryExpr, BlockExpr, CallExpr, Expression, LiteralExpr, PathExpr, UnaryExpr,
+    BinaryExpr, BlockExpr, BlockStatement, CallExpr, Expression, FieldExpr, LiteralExpr, UnaryExpr,
 };
-use yuri_ast::item::{FunctionItem, OuterDeclaration};
-use yuri_ast::types::WrittenTy;
-use yuri_ast::{InStorage, Qpath};
-use yuri_common::{BinaryOperator, FloatBits, ScalarTy, UnaryOperator};
+use yuri_ast::item::{Attribute, FunctionItem, OuterDeclaration, ParameterItem};
+use yuri_ast::types::{VectorTy, WrittenTy};
+use yuri_ast::{Ident, InStorage, Keyword, Qpath, VectorRepr};
+use yuri_common::{BinaryOperator, DimensionCount, FloatBits, ScalarTy, UnaryOperator};
 
 use crate::Ast;
 use crate::{ParseState, parse_all};
@@ -58,11 +58,11 @@ macro_rules! parse_test {
                 println!(" - {tok:?}");
             }
 
-            let (ast, errors, mut state) = parse_all(source, &mut storage, &tokens);
+            let (ast, mut state) = parse_all(source, &mut storage, &tokens);
 
-            if !errors.is_empty() {
+            if !state.errors.is_empty() {
                 eprintln!("parse errors!");
-                for error in errors {
+                for error in state.errors {
                     eprintln!(" - {error}");
                 }
                 panic!();
@@ -126,10 +126,26 @@ parse_expression_test! {
 }
 
 parse_expression_test! {
+    multiple_function_arguments,
+    "vec4f(1, 2, 3, 4)",
+    |_| {
+        CallExpr::new_e(
+            Expression::Access(Ident::Keyword(Keyword::Vec(VectorTy { size: DimensionCount::Four, repr: VectorRepr::Float(None) }))),
+            [
+                LiteralExpr::Integer(1),
+                LiteralExpr::Integer(2),
+                LiteralExpr::Integer(3),
+                LiteralExpr::Integer(4),
+            ],
+        )
+    }
+}
+
+parse_expression_test! {
     field_access,
     "x.y.z",
     |state| {
-        PathExpr::new_e(
+        FieldExpr::new_e(
             Expression::Access(state.str_to_ident("x")),
             [
                 state.str_to_ident("y"),
@@ -145,7 +161,7 @@ parse_expression_test! {
     |state| {
         UnaryExpr::new_e(
             UnaryOperator::Positive,
-            PathExpr::new_e(
+            FieldExpr::new_e(
                 Expression::Access(state.str_to_ident("x")),
                 [
                     state.str_to_ident("y"),
@@ -161,7 +177,7 @@ parse_expression_test! {
     "x.y(1.0)",
     |state| {
         CallExpr::new_e(
-            PathExpr::new_e(
+            FieldExpr::new_e(
                 Expression::Access(state.str_to_ident("x")),
                 [state.str_to_ident("y")],
             ),
@@ -174,9 +190,9 @@ parse_expression_test! {
     method_call_and_field,
     "x.y(1.0).xyz",
     |state| {
-        PathExpr::new_e(
+        FieldExpr::new_e(
             CallExpr::new_e(
-                PathExpr::new_e(
+                FieldExpr::new_e(
                     Expression::Access(state.str_to_ident("x")),
                     [state.str_to_ident("y")],
                 ),
@@ -199,27 +215,27 @@ parse_expression_test! {
                 BinaryOperator::Eq,
                 BinaryExpr::new_e(
                     BinaryOperator::Add,
-                    LiteralExpr::Number(1),
+                    LiteralExpr::Integer(1),
                     BinaryExpr::new_e(
                         BinaryOperator::Multiply,
-                        LiteralExpr::Number(2),
+                        LiteralExpr::Integer(2),
                         BinaryExpr::new_e(
                             BinaryOperator::Divide,
-                            LiteralExpr::Number(3),
-                            LiteralExpr::Number(4),
+                            LiteralExpr::Integer(3),
+                            LiteralExpr::Integer(4),
                         )
                     )
                 ),
-                LiteralExpr::Number(5)
+                LiteralExpr::Integer(5)
             ),
             BinaryExpr::new_e(
                 BinaryOperator::NotEq,
-                LiteralExpr::Number(6),
+                LiteralExpr::Integer(6),
                 UnaryExpr::new_e(
                     UnaryOperator::Positive,
                     UnaryExpr::new_e(
                         UnaryOperator::BitwiseNot,
-                        LiteralExpr::Number(7),
+                        LiteralExpr::Integer(7),
                     )
                 )
             )
@@ -238,6 +254,52 @@ parse_test! {
             parameters: vec![],
             return_type: WrittenTy::Scalar(ScalarTy::Float(FloatBits::Float32)),
             body: BlockExpr { statements: vec![] }
+        }.into()
+    ]
+}
+
+parse_test! {
+    basic_frag_function,
+    "
+@frag
+fn my_frag_main(coord: vec2f): vec4f {
+    vec4f(coord, 0, 1)
+}",
+    |state| vec![
+        FunctionItem {
+            attributes: vec![
+                Attribute {
+                    args: None,
+                    path: Qpath(thin_vec![Ident::Keyword(Keyword::Frag)])
+                }
+            ],
+            export: false,
+            name: state.str_to_ident("my_frag_main"),
+            parameters: vec![
+                ParameterItem {
+                    attributes: vec![],
+                    name: state.str_to_ident("coord"),
+                    explicit_type: WrittenTy::Vector(VectorTy {
+                        size: DimensionCount::Two,
+                        repr: VectorRepr::Float(None)
+                    })
+                }
+            ],
+            return_type: WrittenTy::Vector(VectorTy {
+                size: DimensionCount::Four,
+                repr: VectorRepr::Float(None)
+            }),
+            body: BlockExpr { statements: vec![BlockStatement::Expression(CallExpr {
+                receiver: Expression::Access(Ident::Keyword(Keyword::Vec(VectorTy {
+                    size: DimensionCount::Four,
+                    repr: VectorRepr::Float(None)
+                }))).into(),
+                arguments: vec![
+                    Expression::Access(state.str_to_ident("coord")),
+                    LiteralExpr::Integer(0).into(),
+                    LiteralExpr::Integer(1).into(),
+                ]
+            }.into())] }
         }.into()
     ]
 }

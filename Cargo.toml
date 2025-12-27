@@ -9,7 +9,7 @@ members = [
     "yuri-parser",
     "yuri-compiler",
     "yuri-codegen"
-]
+, "yuri-hir"]
 default-members = [
     "yuri",
     "yuri-cli"

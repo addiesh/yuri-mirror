@@ -774,6 +774,7 @@ dependencies = [
 name = "yuri-common"
 version = "0.1.0"
 dependencies = [
+ "nalgebra",
  "rustc-hash 2.1.1",
  "unicode-xid",
 ]
@@ -782,9 +783,19 @@ dependencies = [
 name = "yuri-compiler"
 version = "0.0.0-alpha.indev.1"
 dependencies = [
+ "yuri-ast",
+ "yuri-common",
+ "yuri-hir",
+ "yuri-lexer",
+ "yuri-parser",
+]
+
+[[package]]
+name = "yuri-hir"
+version = "0.1.0"
+dependencies = [
  "nalgebra",
  "rustc-hash 2.1.1",
- "thin-vec",
  "yuri-ast",
  "yuri-common",
  "yuri-lexer",
@@ -800,6 +811,7 @@ dependencies = [
  "yuri-ast",
  "yuri-common",
  "yuri-compiler",
+ "yuri-hir",
  "yuri-lexer",
  "yuri-parser",
 ]

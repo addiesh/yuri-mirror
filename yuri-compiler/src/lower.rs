@@ -1,25 +1,139 @@
 use std::sync::MutexGuard;
 
-use yuri_ast::Ast;
-use yuri_ast::Ident;
-use yuri_ast::InStorage;
-use yuri_ast::Qpath;
-use yuri_ast::expression_unimplemented;
+use yuri_ast::{Ast, Ident, InStorage, Qpath, expression_unimplemented};
+use yuri_hir::attribute::Attribute;
+use yuri_hir::expression::{
+    ArrayExpression, BinaryExpression, BlockExpression, Expression, LiteralExpr, UnaryExpression,
+};
+use yuri_hir::item::{FunctionItem, Module, ParameterItem, TypeAliasItem, VariableItem};
+use yuri_hir::resolution::Resolution;
+use yuri_hir::scope::{Scope, ScopeItem};
+use yuri_hir::types::TyVal;
+use yuri_hir::types::compound::{CompoundTyVal, CompoundTypeField};
+use yuri_hir::types::primitive::PrimitiveTyVal;
+use yuri_hir::{Yrc, Ywk};
 
-use crate::ParseLower;
-use crate::Yrc;
-use crate::Ywk;
-use crate::attribute::Attribute;
 use crate::error::CompileError;
-use crate::expression::Expression;
-use crate::item::FunctionItem;
-use crate::item::Module;
-use crate::item::ParameterItem;
-use crate::item::TypeAliasItem;
-use crate::item::VariableItem;
-use crate::resolution::Resolution;
-use crate::scope::Scope;
-use crate::scope::ScopeItem;
+
+/// Trait for cheap conversions between syntax tree and compiler node.
+/// The node may be incomplete, and may have to be resolved/lowered further.
+pub trait ParseLower<Output> {
+    fn lower(&self) -> Output;
+}
+
+impl ParseLower<BlockExpression> for yuri_ast::expression::BlockExpr {
+    fn lower(&self) -> BlockExpression {
+        let scope = Yrc::new(Scope::new().into());
+
+        BlockExpression {
+            scope,
+            statements: self
+                .statements
+                .iter()
+                .map(|stmt| {
+                    use yuri_ast::expression::BlockStatement;
+                    match stmt {
+                        BlockStatement::LocalVariable(variable_item) => todo!(),
+                        BlockStatement::TypeAlias(type_alias_item) => todo!(),
+                        BlockStatement::Function(function_item) => todo!(),
+                        BlockStatement::Return(expression) => todo!(),
+                        BlockStatement::Import(ident) => todo!(),
+                        BlockStatement::Expression(expression) => todo!(),
+                        BlockStatement::Assign(qpath, expression) => todo!(),
+                    }
+                })
+                .collect(),
+        }
+    }
+}
+
+impl ParseLower<Expression> for yuri_ast::expression::Expression {
+    fn lower(&self) -> Expression {
+        use yuri_ast::expression::ArrayExpr as Arr;
+        use yuri_ast::expression::Expression as Exp;
+        use yuri_ast::expression::LiteralExpr as Lit;
+        match self {
+            Exp::Field(path_expr) => todo!(),
+            Exp::Access(qpath) => {
+                Expression::Variable(todo!("Resolution::Unresolved(qpath.clone())"))
+            }
+            Exp::Literal(lit) => Expression::Literal(match lit {
+                Lit::Bool(b) => LiteralExpr::Bool(*b),
+                Lit::Decimal(d) => LiteralExpr::Decimal(*d),
+                Lit::Integer(i) => LiteralExpr::Integer(*i),
+                Lit::BinInt(i) => LiteralExpr::BinInt(*i),
+                Lit::HexInt(i) => LiteralExpr::HexInt(*i),
+                Lit::Pi => todo!(),
+                Lit::Tau => todo!(),
+                Lit::Inf => todo!(),
+                Lit::Nan => todo!(),
+            }),
+            Exp::Unary(unary) => Expression::Unary(UnaryExpression {
+                operator: unary.operator,
+                value: unary.value.lower().into(),
+            }),
+            Exp::Binary(binary) => Expression::Binary(BinaryExpression {
+                operator: binary.operator,
+                lhs: binary.lhs.lower().into(),
+                rhs: binary.rhs.lower().into(),
+            }),
+            Exp::Array(Arr::Elements(elements)) => Expression::Array(ArrayExpression::Elements(
+                elements.iter().map(ParseLower::lower).collect(),
+            )),
+            Exp::Array(Arr::Spread { element, length }) => {
+                Expression::Array(ArrayExpression::Spread {
+                    element: element.lower().into(),
+                    length: length.lower().into(),
+                })
+            }
+            Exp::IfExpr(riffx) => todo!(),
+            Exp::FunctionalCall(call) => todo!(),
+            Exp::Compound(compound) => todo!(),
+            Exp::Block(expr) => Expression::Block(expr.lower()),
+            Exp::Paren(expression) => todo!(),
+            #[cfg(debug_assertions)]
+            Exp::Unimplemented { file, line, column } => Expression::Unimplemented {
+                file,
+                line: *line,
+                column: *column,
+            },
+            Exp::MatchExpr(match_expression) => todo!(),
+        }
+    }
+}
+
+impl ParseLower<TyVal> for yuri_ast::types::WrittenTy {
+    fn lower(&self) -> TyVal {
+        use yuri_ast::types::WrittenTy;
+        match self {
+            WrittenTy::Bool => TyVal::Primitive(PrimitiveTyVal::Bool(None)),
+            WrittenTy::Scalar(scalar_ty) => todo!(),
+            WrittenTy::Vector(vector_ty) => todo!(),
+            WrittenTy::Matrix(matrix_ty) => todo!(),
+            WrittenTy::Array(array_ty) => todo!(),
+            WrittenTy::Compound(compound_ty) => TyVal::Compound(Box::new(CompoundTyVal {
+                fields: compound_ty
+                    .fields
+                    .iter()
+                    .map(|field| CompoundTypeField {
+                        name: field.name,
+                        attributes: field
+                            .attributes
+                            .iter()
+                            .map(|attrib| Attribute {
+                                path: attrib.path.clone(),
+                                args: Default::default(),
+                            })
+                            .collect(),
+                        field_type: field.field_ty.lower(),
+                    })
+                    .collect(),
+            })),
+            WrittenTy::Alias(qpath) => TyVal::Alias(Resolution::Unresolved(qpath.clone())),
+            WrittenTy::Enum => todo!("lower enum type"),
+        }
+    }
+}
 
 struct Lowerer<'src, 'storage, 'at> {
     storage: &'storage mut InStorage,
@@ -182,8 +296,8 @@ impl<'src, 'storage, 'at> Lowerer<'src, 'storage, 'at> {
         attribs
             .iter()
             .map(|attrib| Attribute {
-                path: Resolution::Unresolved(attrib.path.clone()),
-                params: Default::default(),
+                path: attrib.path.clone(),
+                args: Default::default(),
             })
             .collect()
     }

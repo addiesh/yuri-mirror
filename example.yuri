@@ -13,5 +13,5 @@ fn my_vert_main(pos: vec3f, coord: vec2f): VertexOutput {
 
 @frag
 fn my_frag_main(coord: vec2f): vec4f {
-    vec4f(coord, 0, 1)
+	vec4f(coord, 0, 1)
 }

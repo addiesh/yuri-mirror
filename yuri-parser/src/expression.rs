@@ -3,7 +3,6 @@ use yuri_ast::expression::{
     LiteralExpr, UnaryExpr,
 };
 use yuri_ast::{Ident, Keyword, expression_unimplemented};
-
 use yuri_common::{BinaryOperator, UnaryOperator};
 use yuri_lexer::TokenKind;
 use yuri_lexer::token::{Base, LiteralKind};
@@ -331,7 +330,6 @@ impl<'src> ParseState<'src, '_> {
 
     pub fn expr_block(&mut self) -> Result<BlockExpr, ParseError> {
         self.expect(TokenKind::OpenBrace)?;
-        eprintln!("TODO: block expression");
 
         let mut statements = Vec::new();
 

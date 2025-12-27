@@ -1,0 +1,12 @@
+[package]
+name = "yuri-hir"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+yuri-common = { path = "../yuri-common" }
+yuri-lexer = { path = "../yuri-lexer" }
+yuri-parser = { path = "../yuri-parser" }
+yuri-ast = { path = "../yuri-ast" }
+rustc-hash = { workspace = true }
+nalgebra = { workspace = true }

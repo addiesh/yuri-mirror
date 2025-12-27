@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display};
 
 use rustc_hash::FxHashMap;
 use thin_vec::ThinVec;
-use yuri_common::{DimensionCount, FloatBits, IntBits};
+use yuri_common::{DimCount, FloatBits, IntBits};
 
 use crate::item::OuterDeclaration;
 use crate::types::{MatrixTy, VectorTy};
@@ -231,8 +231,8 @@ impl Keyword {
     // PartialEq isn't const :/
     #[rustfmt::skip]
     pub fn try_from_str(value: &str) -> Option<Self> {
-        use MatrixDimensions::*;
-        use DimensionCount::*;
+        use MatrixDim::*;
+        use DimCount::*;
         use FloatBits::*;
         use IntBits::*;
         Some(match value {
@@ -429,21 +429,18 @@ pub enum VectorRepr {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MatrixDimensions {
-    Short(DimensionCount),
-    Long {
-        columns: DimensionCount,
-        rows: DimensionCount,
-    },
+pub enum MatrixDim {
+    Short(DimCount),
+    Long { columns: DimCount, rows: DimCount },
 }
 
-impl Display for MatrixDimensions {
+impl Display for MatrixDim {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MatrixDimensions::Short(dimension_count) => {
+            MatrixDim::Short(dimension_count) => {
                 write!(f, "{dimension_count}")
             }
-            MatrixDimensions::Long { columns, rows } => {
+            MatrixDim::Long { columns, rows } => {
                 write!(f, "{columns}x{rows}")
             }
         }

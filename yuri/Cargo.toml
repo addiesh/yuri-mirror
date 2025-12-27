@@ -19,6 +19,7 @@ yuri-ast = { path = "../yuri-ast" }
 yuri-lexer = { path = "../yuri-lexer" }
 yuri-parser = { path = "../yuri-parser" }
 yuri-compiler = { path = "../yuri-compiler" }
+yuri-hir = { path = "../yuri-hir" }
 
 log = { workspace = true, optional = true }
 rayon = { workspace = true }

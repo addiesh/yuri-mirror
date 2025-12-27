@@ -12,6 +12,7 @@ pub struct Attribute {
 pub struct TypeAliasItem {
     pub export: bool,
     pub name: Ident,
+    pub type_attributes: Vec<Attribute>,
     pub aliases: WrittenTy,
 }
 

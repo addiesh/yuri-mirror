@@ -1,17 +1,17 @@
-use yuri_common::{DimensionCount, FloatBits, ScalarTy};
+use yuri_common::{DimCount, FloatBits, ScalarTy};
 
 use crate::item::Attribute;
-use crate::{Ident, MatrixDimensions, Qpath, VectorRepr};
+use crate::{Ident, MatrixDim, Qpath, VectorRepr};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct MatrixTy {
-    pub size: MatrixDimensions,
+    pub size: MatrixDim,
     pub repr: Option<FloatBits>,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct VectorTy {
-    pub size: DimensionCount,
+    pub size: DimCount,
     pub repr: VectorRepr,
 }
 
@@ -25,7 +25,7 @@ pub enum ArrayLength {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ArrayTy {
     pub length: ArrayLength,
-    pub element_ty: WrittenTy,
+    pub element_ty: Box<WrittenTy>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -48,8 +48,46 @@ pub enum WrittenTy {
     Scalar(ScalarTy),
     Vector(VectorTy),
     Matrix(MatrixTy),
-    Array(Box<ArrayTy>),
-    Compound(Box<CompoundTy>),
+    Array(ArrayTy),
+    Compound(CompoundTy),
     // TODO
     Enum,
 }
+
+pub const WRITTEN_MAT4F: WrittenTy = WrittenTy::Matrix(MatrixTy {
+    size: MatrixDim::Short(DimCount::Four),
+    repr: None,
+});
+pub const WRITTEN_VEC2F: WrittenTy = WrittenTy::Vector(VectorTy {
+    size: DimCount::Two,
+    repr: VectorRepr::Float(None),
+});
+pub const WRITTEN_VEC3F: WrittenTy = WrittenTy::Vector(VectorTy {
+    size: DimCount::Three,
+    repr: VectorRepr::Float(None),
+});
+pub const WRITTEN_VEC4F: WrittenTy = WrittenTy::Vector(VectorTy {
+    size: DimCount::Four,
+    repr: VectorRepr::Float(None),
+});
+
+macro_rules! written_from_helper {
+    ($from:ty, $variant:ident) => {
+        impl From<$from> for WrittenTy {
+            fn from(value: $from) -> Self {
+                WrittenTy::$variant(value)
+            }
+        }
+
+        impl From<$from> for Box<WrittenTy> {
+            fn from(value: $from) -> Self {
+                Box::new(WrittenTy::$variant(value))
+            }
+        }
+    };
+}
+written_from_helper!(ScalarTy, Scalar);
+written_from_helper!(VectorTy, Vector);
+written_from_helper!(MatrixTy, Matrix);
+written_from_helper!(ArrayTy, Array);
+written_from_helper!(CompoundTy, Compound);

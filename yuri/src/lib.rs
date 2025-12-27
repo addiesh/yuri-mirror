@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use yuri_ast::InStorage;
 use yuri_common::to_snake_case;
-use yuri_compiler::Yrc;
 use yuri_compiler::error::CompileError;
-use yuri_compiler::item::Module;
+use yuri_hir::Yrc;
+use yuri_hir::item::Module;
 use yuri_lexer::Token;
 
 pub type YuriError = Box<dyn Error + Send + Sync + 'static>;
@@ -29,6 +29,11 @@ pub fn _test_compile<'src>(
 
     let module_name_ident = storage.to_ident(&module_name);
     let (ast, state) = yuri_parser::parse_all(source, &mut storage, &tokens);
+    if !state.errors.is_empty() {
+        return Err(CompileError::Multiple(
+            state.errors.into_iter().map(CompileError::Parse).collect(),
+        ));
+    }
     let module = yuri_compiler::lower::lower(source, &mut storage, &ast, module_name_ident)?;
 
     todo!("change definition of ParseState, use mutex instead of &mut");

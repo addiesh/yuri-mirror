@@ -7,9 +7,9 @@ license = "Apache-2.0"
 
 [dependencies]
 yuri-common = { path = "../yuri-common" }
-yuri-lexer = { path = "../yuri-lexer" }
 yuri-parser = { path = "../yuri-parser" }
 yuri-ast = { path = "../yuri-ast" }
-rustc-hash = { workspace = true }
-nalgebra = { workspace = true }
-thin-vec = { workspace = true }
+yuri-hir = { path = "../yuri-hir" }
+
+[dev-dependencies]
+yuri-lexer = { path = "../yuri-lexer" }

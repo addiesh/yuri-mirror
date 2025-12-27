@@ -3,14 +3,14 @@ use yuri_ast::Ident;
 use crate::attribute::Attribute;
 use crate::expression::{BlockExpression, Expression};
 use crate::scope::Scope;
-use crate::types::TypeValue;
+use crate::types::TyVal;
 use crate::{Yrc, Ywk};
 
 #[derive(Debug)]
 pub struct TypeAliasItem {
     pub parent_scope: Ywk<Scope>,
     pub name: Ident,
-    pub aliases: TypeValue,
+    pub aliases: TyVal,
 }
 
 /// Despite the name, all variables are immutable.
@@ -19,7 +19,7 @@ pub struct VariableItem {
     pub parent_scope: Ywk<Scope>,
     pub name: Ident,
     /// The target type of this variable, as specified by the programmer.
-    pub explicit_type: Option<TypeValue>,
+    pub explicit_type: Option<TyVal>,
     pub value: Expression,
 }
 
@@ -29,7 +29,7 @@ pub struct ParameterItem {
     pub attributes: Vec<Attribute>,
     pub name: Ident,
     /// The target type of this variable, as specified by the programmer.
-    pub explicit_type: TypeValue,
+    pub explicit_type: TyVal,
 }
 
 #[derive(Clone, Debug)]
@@ -39,7 +39,7 @@ pub struct FunctionItem {
     pub name: Ident,
     pub parameters: Vec<Yrc<ParameterItem>>,
     // of note, the *actual* return type is derived from the function body.
-    pub return_type: TypeValue,
+    pub return_type: TyVal,
     pub body: BlockExpression,
 }
 

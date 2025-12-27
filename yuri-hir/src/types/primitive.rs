@@ -1,22 +1,64 @@
-use nalgebra::{DMatrix, Vector2, Vector3, Vector4};
-use yuri_common::{DimensionCount, FloatBits, IntBits, ScalarTy};
+use std::fmt::Debug;
+
+use nalgebra::{DMatrix, DVector};
+use yuri_common::DimCount;
 
 use crate::error::TypeError;
-use crate::types::{TypeValue, Typeable};
+use crate::types::{TyVal, Typeable};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MatrixTyVal {
-    pub columns: DimensionCount,
-    pub rows: DimensionCount,
-    pub bitsize: Option<FloatBits>,
-    // TODO: store the data in a way that makes sense here
-    // pub data: DMatrix,
+    pub columns: DimCount,
+    pub rows: DimCount,
+    pub data: MatrixStorage,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+// TODO: this sucks. please rework
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MatrixStorage {
+    Signed8(Option<DMatrix<i8>>),
+    Signed16(Option<DMatrix<i16>>),
+    Signed32(Option<DMatrix<i32>>),
+    Signed64(Option<DMatrix<i64>>),
+    SignedAny(Option<DMatrix<i64>>),
+
+    Unsigned8(Option<DMatrix<u8>>),
+    Unsigned16(Option<DMatrix<u16>>),
+    Unsigned32(Option<DMatrix<u32>>),
+    Unsigned64(Option<DMatrix<u64>>),
+    UnsignedAny(Option<DMatrix<u64>>),
+
+    Float16(Option<DMatrix<f32>>),
+    Float32(Option<DMatrix<f32>>),
+    Float64(Option<DMatrix<f64>>),
+    FloatAny(Option<DMatrix<f64>>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct VectorTyVal {
-    pub size: DimensionCount,
-    pub repr: ScalarTy,
+    pub size: DimCount,
+    pub data: VectorStorage,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum VectorStorage {
+    Signed8(Option<DVector<i8>>),
+    Signed16(Option<DVector<i16>>),
+    Signed32(Option<DVector<i32>>),
+    Signed64(Option<DVector<i64>>),
+    SignedAny(Option<DVector<i64>>),
+
+    Unsigned8(Option<DVector<u8>>),
+    Unsigned16(Option<DVector<u16>>),
+    Unsigned32(Option<DVector<u32>>),
+    Unsigned64(Option<DVector<u64>>),
+    UnsignedAny(Option<DVector<u64>>),
+
+    Float16(Option<DVector<f32>>),
+    Float32(Option<DVector<f32>>),
+    Float64(Option<DVector<f64>>),
+    FloatAny(Option<DVector<f64>>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -25,39 +67,39 @@ pub enum ScalarTyVal {
     Signed16(Option<i16>),
     Signed32(Option<i32>),
     Signed64(Option<i64>),
-    /// May be any signed number
-    SignedX(Option<i64>),
-    /// May be any number, but has a sign.
-    SignedNum(Option<i64>),
+    SignedAny(Option<i64>),
+
     Unsigned8(Option<u8>),
     Unsigned16(Option<u16>),
     Unsigned32(Option<u32>),
     Unsigned64(Option<u64>),
-    /// May be any unsigned number.
-    UnsignedX(Option<u64>),
-    /// May be any number, but cannot have a sign.
-    UnsignedNum(Option<u64>),
+    UnsignedAny(Option<u64>),
+
     Float16(Option<f32>),
     Float32(Option<f32>),
     Float64(Option<f64>),
-    /// May be any float number.
-    FloatX(Option<f64>),
-    /// May be any number, but has a decimal point.
-    FloatNum(Option<u64>),
+    FloatAny(Option<f64>),
+
+    NaN,
+    Pi,
+    Tau,
 }
 
 // Currently, the Yuri type system can only discriminate between **Known** and **Unknown** values.
 // In future versions, the goal is to implement algebraic solving for partial unknowns.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Primitive {
+pub enum PrimitiveTyVal {
     Bool(Option<bool>),
     Scalar(ScalarTyVal),
     Vector(VectorTyVal),
     Matrix(MatrixTyVal),
 }
 
-fn primitive_union(this: &Primitive, other: &Primitive) -> Result<Primitive, TypeError> {
-    use Primitive::*;
+fn primitive_union(
+    this: &PrimitiveTyVal,
+    other: &PrimitiveTyVal,
+) -> Result<PrimitiveTyVal, TypeError> {
+    use PrimitiveTyVal::*;
     // TODO: technically the equality here has errors because of floating-point NaN.
     // fix if it becomes an issue.
 
@@ -98,10 +140,10 @@ fn primitive_union(this: &Primitive, other: &Primitive) -> Result<Primitive, Typ
     })
 }
 
-impl Typeable for Primitive {
+impl Typeable for PrimitiveTyVal {
     #[rustfmt::skip]
     fn intersect_with(&self, other: &Self) -> Result<Self, TypeError> {
-        use Primitive::*;
+        use PrimitiveTyVal::*;
         // macros can't expand to match arms
         match (self, other) {
             // ambiguous literals
@@ -137,14 +179,14 @@ impl Typeable for Primitive {
             (Bool(None), Bool(None)) => Ok(Bool(None)),
 
             // value -> value (needs equality relation)
-            (Bool(Some(a)), Bool(Some(b))) => if a == b { Ok(Bool(Some(*a))) } else { Err(TypeError::ConcreteInequality(TypeValue::Primitive(self.clone()), TypeValue::Primitive(other.clone()))) },
+            (Bool(Some(a)), Bool(Some(b))) => if a == b { Ok(Bool(Some(*a))) } else { Err(TypeError::ConcreteInequality(TyVal::Primitive(self.clone()), TyVal::Primitive(other.clone()))) },
 
             // value -> type
             (Bool(val), Bool(None)) => Ok(Bool(*val)),
 
             // type -> value (invalid)
             (Bool(None), Bool(Some(_)))
-            => Err(TypeError::UnknownSubtype(TypeValue::Primitive(self.clone()), TypeValue::Primitive(other.clone()))),
+            => Err(TypeError::UnknownSubtype(TyVal::Primitive(self.clone()), TyVal::Primitive(other.clone()))),
 
             _ => todo!()
             // _ => Err(TypeError::UnrelatedType(

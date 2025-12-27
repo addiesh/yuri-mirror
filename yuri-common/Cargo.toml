@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 unicode-xid = { workspace = true }
 rustc-hash = { workspace = true }
+nalgebra = { workspace = true }

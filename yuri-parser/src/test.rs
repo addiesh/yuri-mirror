@@ -2,10 +2,12 @@ use thin_vec::thin_vec;
 use yuri_ast::expression::{
     BinaryExpr, BlockExpr, BlockStatement, CallExpr, Expression, FieldExpr, LiteralExpr, UnaryExpr,
 };
-use yuri_ast::item::{Attribute, FunctionItem, OuterDeclaration, ParameterItem};
-use yuri_ast::types::{VectorTy, WrittenTy};
+use yuri_ast::item::{Attribute, FunctionItem, OuterDeclaration, ParameterItem, TypeAliasItem};
+use yuri_ast::types::{
+    CompoundTy, CompoundTyField, MatrixTy, VectorTy, WRITTEN_VEC2F, WRITTEN_VEC4F, WrittenTy,
+};
 use yuri_ast::{Ident, InStorage, Keyword, Qpath, VectorRepr};
-use yuri_common::{BinaryOperator, DimensionCount, FloatBits, ScalarTy, UnaryOperator};
+use yuri_common::{BinaryOperator, DimCount, FloatBits, ScalarTy, UnaryOperator};
 
 use crate::Ast;
 use crate::{ParseState, parse_all};
@@ -54,9 +56,9 @@ macro_rules! parse_test {
             let tokens: Box<[_]> = yuri_lexer::tokenize(source).collect();
             let mut storage = InStorage::default();
 
-            for tok in &tokens {
-                println!(" - {tok:?}");
-            }
+            // for tok in &tokens {
+            //     println!(" - {tok:?}");
+            // }
 
             let (ast, mut state) = parse_all(source, &mut storage, &tokens);
 
@@ -130,7 +132,7 @@ parse_expression_test! {
     "vec4f(1, 2, 3, 4)",
     |_| {
         CallExpr::new_e(
-            Expression::Access(Ident::Keyword(Keyword::Vec(VectorTy { size: DimensionCount::Four, repr: VectorRepr::Float(None) }))),
+            Expression::Access(Ident::Keyword(Keyword::Vec(VectorTy { size: DimCount::Four, repr: VectorRepr::Float(None) }))),
             [
                 LiteralExpr::Integer(1),
                 LiteralExpr::Integer(2),
@@ -280,18 +282,134 @@ fn my_frag_main(coord: vec2f): vec4f {
                     attributes: vec![],
                     name: state.str_to_ident("coord"),
                     explicit_type: WrittenTy::Vector(VectorTy {
-                        size: DimensionCount::Two,
+                        size: DimCount::Two,
                         repr: VectorRepr::Float(None)
                     })
                 }
             ],
             return_type: WrittenTy::Vector(VectorTy {
-                size: DimensionCount::Four,
+                size: DimCount::Four,
                 repr: VectorRepr::Float(None)
             }),
             body: BlockExpr { statements: vec![BlockStatement::Expression(CallExpr {
                 receiver: Expression::Access(Ident::Keyword(Keyword::Vec(VectorTy {
-                    size: DimensionCount::Four,
+                    size: DimCount::Four,
+                    repr: VectorRepr::Float(None)
+                }))).into(),
+                arguments: vec![
+                    Expression::Access(state.str_to_ident("coord")),
+                    LiteralExpr::Integer(0).into(),
+                    LiteralExpr::Integer(1).into(),
+                ]
+            }.into())] }
+        }.into()
+    ]
+}
+
+parse_test! {
+    what_the_lower_uses,
+    "
+# test
+@frag
+fn test(): mat2 {}
+",
+    |state| vec![
+        FunctionItem {
+            attributes: vec![
+                Attribute {
+                    args: None,
+                    path: Qpath(thin_vec![Ident::Keyword(Keyword::Frag)])
+                }
+            ],
+            export: false,
+            name: state.str_to_ident("test"),
+            parameters: vec![],
+            return_type: WrittenTy::Matrix(MatrixTy {
+                size: yuri_ast::MatrixDim::Short(DimCount::Two),
+                repr: None
+            }),
+            body: BlockExpr { statements: vec![] }
+        }.into()
+    ]
+}
+
+parse_test! {
+    example_yuri,
+    include_str!("../../example.yuri"),
+    |state| vec![
+        TypeAliasItem {
+            export: false,
+            name: state.str_to_ident("VertexOutput"),
+            // {{ @vert.pos out: vec4f, coord: vec2f }}
+            type_attributes: vec![],
+            aliases: CompoundTy {
+                fields: vec![
+                    CompoundTyField {
+                        attributes: vec![Attribute {
+                            path: Qpath(thin_vec![
+                                state.str_to_ident("vert"),
+                                state.str_to_ident("pos"),
+                            ]),
+                            args: None
+                        }],
+                        name: state.str_to_ident("out"),
+                        field_ty: WRITTEN_VEC4F
+                    }
+                ]
+            }.into()
+        }.into(),
+        FunctionItem {
+            attributes: vec![
+                Attribute {
+                    args: None,
+                    path: Qpath(thin_vec![Ident::Keyword(Keyword::Frag)])
+                }
+            ],
+            export: false,
+            name: state.str_to_ident("my_frag_main"),
+            parameters: vec![
+                ParameterItem {
+                    attributes: vec![],
+                    name: state.str_to_ident("coord"),
+                    explicit_type: WRITTEN_VEC2F
+                }
+            ],
+            return_type: WrittenTy::Vector(VectorTy {
+                size: DimCount::Four,
+                repr: VectorRepr::Float(None)
+            }),
+            body: BlockExpr { statements: vec![BlockStatement::Expression(CallExpr {
+                receiver: Expression::Access(Ident::Keyword(Keyword::Vec(VectorTy {
+                    size: DimCount::Four,
+                    repr: VectorRepr::Float(None)
+                }))).into(),
+                arguments: vec![
+                    Expression::Access(state.str_to_ident("coord")),
+                    LiteralExpr::Integer(0).into(),
+                    LiteralExpr::Integer(1).into(),
+                ]
+            }.into())] }
+        }.into(),
+        FunctionItem {
+            attributes: vec![
+                Attribute {
+                    args: None,
+                    path: Qpath(thin_vec![Ident::Keyword(Keyword::Vert)])
+                }
+            ],
+            export: false,
+            name: state.str_to_ident("my_vert_main"),
+            parameters: vec![
+                ParameterItem {
+                    attributes: vec![],
+                    name: state.str_to_ident("coord"),
+                    explicit_type: WRITTEN_VEC2F
+                }
+            ],
+            return_type: WRITTEN_VEC4F,
+            body: BlockExpr { statements: vec![BlockStatement::Expression(CallExpr {
+                receiver: Expression::Access(Ident::Keyword(Keyword::Vec(VectorTy {
+                    size: DimCount::Four,
                     repr: VectorRepr::Float(None)
                 }))).into(),
                 arguments: vec![

@@ -347,6 +347,21 @@ impl<'src> ParseState<'src, '_> {
         }
     }
 
+    /// Like [expect], but for the common cases of:
+    /// - "I expect an ident for this token, tell me what it is"
+    /// - "I expect a specific ident for this token"
+    #[must_use]
+    fn expect_ident(&mut self, ident: Option<Ident>) -> Result<Ident, ParseError> {
+        let got = self.expect(TokenKind::Ident)?;
+        let got = self.token_to_ident(got);
+        if let Some(expected) = ident
+            && got != expected
+        {
+            return Err(self.unexpected());
+        }
+        Ok(got)
+    }
+
     // fn take_delimited<T>(&mut self, kind: TokenKind) -> Result<T, ParseError> {
     // }
 }

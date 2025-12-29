@@ -1,6 +1,6 @@
 use yuri_ast::expression::{
-    BinaryExpr, BlockExpr, BlockStatement, CallExpr, CompoundExpr, Expression, FieldExpr,
-    LiteralExpr, UnaryExpr,
+    BinaryExpr, BlockExpr, BlockStatement, CallExpr, CompoundExpr, CompoundExprField, Expression,
+    FieldExpr, LiteralExpr, UnaryExpr,
 };
 use yuri_ast::{Ident, Keyword, expression_unimplemented};
 use yuri_common::{BinaryOperator, UnaryOperator};
@@ -402,8 +402,80 @@ impl<'src> ParseState<'src, '_> {
     pub fn expr_compound_init(&mut self) -> Result<CompoundExpr, ParseError> {
         self.expect(TokenKind::OpenDoubleBrace)?;
         self.take_whitespace(true);
-        eprintln!("TODO: compound init expression");
-        self.expect(TokenKind::CloseDoubleBrace)?;
-        Ok(CompoundExpr { fields: vec![] })
+
+        let mut fields = Vec::<CompoundExprField>::new();
+
+        loop {
+            // check if there's a close-db at the beginning (unit initialization)
+
+            let next = self.peek().eof()?;
+            if next.kind == TokenKind::CloseDoubleBrace {
+                self.skip();
+                break;
+            }
+
+            println!("Got an expression field!");
+
+            let attributes = self.attributes()?;
+            let name = self.expect_ident(None)?;
+            self.take_whitespace(true);
+
+            // (optional) type annotation
+            let next = self.peek().eof()?;
+            let written_ty = if next.kind == TokenKind::Colon {
+                self.skip();
+                self.take_whitespace(true);
+                let written_ty = self.written_ty()?;
+                self.take_whitespace(true);
+                Some(written_ty)
+            } else {
+                None
+            };
+
+            // (optional) value. this is optional because we may be pulling the value from another identifier.
+            let value = if self.peek().eof()?.kind == TokenKind::Eq {
+                self.skip();
+                self.take_whitespace(true);
+                let expr = self.expression()?;
+                self.take_whitespace(true);
+                Some(expr)
+            } else {
+                None
+            };
+
+            fields.push(CompoundExprField {
+                attributes,
+                name,
+                written_ty,
+                value,
+            });
+
+            self.take_whitespace(true);
+            let next = self.peek().eof()?;
+            match next.kind {
+                TokenKind::Comma => {
+                    self.skip();
+                    self.take_whitespace(true);
+                    let next = self.peek().eof()?;
+                    if next.kind == TokenKind::CloseDoubleBrace {
+                        self.skip();
+                        break;
+                    }
+                    continue;
+                }
+                TokenKind::CloseDoubleBrace => {
+                    self.skip();
+                    break;
+                }
+                kind => {
+                    let waa = self.token_to_ident(next);
+                    panic!(
+                        "recover from unexpected ({kind:?}, {waa:?} @ {}) before close double-brace in compound expression initializer",
+                        self.pos()
+                    )
+                }
+            }
+        }
+        Ok(CompoundExpr { fields })
     }
 }

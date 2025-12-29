@@ -1,12 +1,13 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 use thin_vec::ThinVec;
 use yuri_common::{BinaryOperator, UnaryOperator};
 
-use crate::item::{FunctionItem, TypeAliasItem, VariableItem};
+use crate::item::{Attribute, FunctionItem, TypeAliasItem, VariableItem};
+use crate::types::WrittenTy;
 use crate::{Ident, Qpath};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Expression {
     /// Either a variable, a module, or a type.
     /// We can't really figure out which until resolution.
@@ -30,6 +31,28 @@ pub enum Expression {
         line: u32,
         column: u32,
     },
+}
+
+impl Debug for Expression {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Access(arg0) => f.debug_tuple("Access").field(arg0).finish(),
+            Self::Field(arg0) => f.debug_tuple("Field").field(arg0).finish(),
+            Self::Literal(arg0) => f.debug_tuple("Literal").field(arg0).finish(),
+            Self::Unary(arg0) => f.debug_tuple("Unary").field(arg0).finish(),
+            Self::Binary(arg0) => f.debug_tuple("Binary").field(arg0).finish(),
+            Self::Array(arg0) => f.debug_tuple("Array").field(arg0).finish(),
+            Self::IfExpr(arg0) => f.debug_tuple("IfExpr").field(arg0).finish(),
+            Self::MatchExpr(arg0) => f.debug_tuple("MatchExpr").field(arg0).finish(),
+            Self::FunctionalCall(arg0) => f.debug_tuple("FunctionalCall").field(arg0).finish(),
+            Self::Compound(arg0) => f.debug_tuple("Compound").field(arg0).finish(),
+            Self::Block(arg0) => f.debug_tuple("Block").field(arg0).finish(),
+            Self::Paren(arg0) => f.debug_tuple("Paren").field(arg0).finish(),
+            Self::Unimplemented { file, line, column } => {
+                write!(f, "!! Unimplemented @ {file}:{line}:{column} !!")
+            }
+        }
+    }
 }
 
 #[cfg(debug_assertions)]
@@ -230,13 +253,15 @@ pub enum ArrayExpr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompoundExpr {
-    pub fields: Vec<CompoundExpressionField>,
+    pub fields: Vec<CompoundExprField>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct CompoundExpressionField {
-    pub target_field: Ident,
-    pub expression: Expression,
+pub struct CompoundExprField {
+    pub attributes: Vec<Attribute>,
+    pub name: Ident,
+    pub written_ty: Option<WrittenTy>,
+    pub value: Option<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

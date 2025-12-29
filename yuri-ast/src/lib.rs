@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::fmt::{Debug, Display};
 
 use rustc_hash::FxHashMap;
-use thin_vec::ThinVec;
+use thin_vec::{ThinVec, thin_vec};
 use yuri_common::{DimCount, FloatBits, IntBits};
 
 use crate::item::OuterDeclaration;
@@ -10,6 +10,7 @@ use crate::types::{MatrixTy, VectorTy};
 
 pub mod expression;
 pub mod item;
+pub mod pretty;
 pub mod types;
 
 pub type Ast = Vec<OuterDeclaration>;
@@ -55,6 +56,24 @@ pub enum Ident {
 #[derive(Debug, Clone, PartialEq)]
 #[repr(transparent)]
 pub struct Qpath(pub ThinVec<Ident>);
+
+impl Qpath {
+    pub fn single(single: Ident) -> Self {
+        Self(thin_vec![single])
+    }
+    pub fn pretty_print(&self, storage: &InStorage) -> String {
+        self.0
+            .iter()
+            .map(|part| {
+                storage
+                    .resolve(part)
+                    .expect("qpath part ident needs valid ID")
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .join(".")
+    }
+}
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub enum Keyword {

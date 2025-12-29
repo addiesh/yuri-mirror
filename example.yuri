@@ -4,7 +4,7 @@
 # See https://git.gay/yuri/yuri for more.
 # --------------------------------------------------
 
-type VertxOutput = {{ @vert.pos out: vec4f, coord: vec2f }}
+type VertexOutput = {{ @vert.pos out: vec4f, coord: vec2f }}
 
 @vert
 fn my_vert_main(pos: vec3f, coord: vec2f): VertexOutput {

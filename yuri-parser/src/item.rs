@@ -1,10 +1,12 @@
-use yuri_ast::types::{MatrixTy, WrittenTy};
+use yuri_ast::types::{CompoundTy, CompoundTyField, MatrixTy, WrittenTy};
 use yuri_common::ScalarTy;
 use yuri_lexer::TokenKind;
 
 use crate::ParseState;
 use crate::error::{ParseError, ParseTry};
-use yuri_ast::item::{Attribute, FunctionItem, OuterDeclaration, ParameterItem, VariableItem};
+use yuri_ast::item::{
+    Attribute, FunctionItem, OuterDeclaration, ParameterItem, TypeAliasItem, VariableItem,
+};
 use yuri_ast::{Ident, Keyword};
 
 impl<'src> ParseState<'src, '_> {
@@ -29,10 +31,13 @@ impl<'src> ParseState<'src, '_> {
                     Ident::Keyword(Keyword::Fn) => {
                         self.function(has_export, attributes).map(Into::into)
                     }
-                    Ident::Keyword(Keyword::Type) => todo!(),
-                    Ident::Keyword(Keyword::Module) => todo!(),
+                    Ident::Keyword(Keyword::Type) => {
+                        self.alias(has_export, attributes).map(Into::into)
+                    }
+                    Ident::Keyword(Keyword::Module) => todo!("parse nested module"),
                     Ident::Keyword(Keyword::Import) => todo!(),
-                    _ => panic!("{ident:?} @ {}", self.pos()),
+                    // TODO: this should be a recovery
+                    _ => panic!("unexpected/unknown {ident:?} @ {}", self.pos()),
                     // _ => Err(ParseError::UnexpectedToken {
                     //     token: tok.kind,
                     //     at: self.pos(),
@@ -58,8 +63,7 @@ impl<'src> ParseState<'src, '_> {
             assert_eq!(self.token_to_ident(tok), Ident::Keyword(Keyword::Fn));
         }
         self.take_whitespace(true);
-        let name = self.expect(TokenKind::Ident)?;
-        let name = self.token_to_ident(name);
+        let name = self.expect_ident(None)?;
 
         let parameters = self.function_params()?;
 
@@ -98,8 +102,7 @@ impl<'src> ParseState<'src, '_> {
             }
 
             let attributes = self.attributes()?;
-            let name = self.expect(TokenKind::Ident)?;
-            let name = self.token_to_ident(name);
+            let name = self.expect_ident(None)?;
             self.take_whitespace(true);
             self.expect(TokenKind::Colon)?;
             self.take_whitespace(true);
@@ -138,8 +141,7 @@ impl<'src> ParseState<'src, '_> {
             assert_eq!(self.token_to_ident(tok), Ident::Keyword(Keyword::Let));
         }
         self.take_whitespace(true);
-        let name = self.expect(TokenKind::Ident)?;
-        let name = self.token_to_ident(name);
+        let name = self.expect_ident(None)?;
 
         self.take_whitespace(true);
         let next = self.peek().eof()?;
@@ -193,14 +195,98 @@ impl<'src> ParseState<'src, '_> {
                 }
                 _ => Err(self.unexpected()),
             },
-            TokenKind::OpenDoubleBrace => todo!(),
+            TokenKind::OpenDoubleBrace => self.written_compound_type().map(WrittenTy::Compound),
             TokenKind::OpenBracket => todo!(),
             _ => Err(self.unexpected()),
         }
     }
 
-    pub fn alias(&mut self) -> Result<OuterDeclaration, ParseError> {
-        todo!()
+    pub fn written_compound_type(&mut self) -> Result<CompoundTy, ParseError> {
+        self.expect(TokenKind::OpenDoubleBrace)?;
+        let mut fields = Vec::<CompoundTyField>::new();
+        self.take_whitespace(true);
+
+        loop {
+            println!("!!! ~~ this is iteration #{}", fields.len() + 1);
+
+            // check if there's a close-db at the beginning.
+
+            // this is the birthplace of yuri's unit type.
+            // A consequence of otherwise uninteresting syntax,
+            // a compound type with no fields
+
+            let next = self.peek().eof()?;
+            if next.kind == TokenKind::CloseDoubleBrace {
+                self.skip();
+                break;
+            }
+
+            let attributes = self.attributes()?;
+            self.take_whitespace(true);
+            let name = self.expect_ident(None)?;
+            self.take_whitespace(true);
+            self.expect(TokenKind::Colon)?;
+            self.take_whitespace(true);
+            let field_ty = self.written_ty()?;
+
+            println!("adding");
+            fields.push(CompoundTyField {
+                attributes,
+                name,
+                field_ty,
+            });
+
+            self.take_whitespace(true);
+            let next = self.peek().eof()?;
+            match next.kind {
+                TokenKind::Comma => {
+                    self.skip();
+                    self.take_whitespace(true);
+                    let next = self.peek().eof()?;
+                    if next.kind == TokenKind::CloseDoubleBrace {
+                        self.skip();
+                        println!("WE ARE EXITING EARLY !!!!!!!!!!!");
+                        break;
+                    }
+                    continue;
+                }
+                TokenKind::CloseDoubleBrace => {
+                    self.skip();
+                    println!("WE ARE EXITING ON TIME !!!!!!!!!!!");
+
+                    break;
+                }
+                _ => todo!("recover from unexpected before close paren in call expr"),
+            }
+        }
+        Ok(CompoundTy { fields })
+    }
+
+    pub fn alias(
+        &mut self,
+        export: bool,
+        attributes: Vec<Attribute>,
+    ) -> Result<Box<TypeAliasItem>, ParseError> {
+        self.expect_ident(Some(Ident::Keyword(Keyword::Type)))?;
+        self.take_whitespace(true);
+        let name = self.expect_ident(None)?;
+
+        self.take_whitespace(true);
+        self.expect(TokenKind::Eq)?;
+        self.take_whitespace(true);
+
+        let aliases = self.written_ty()?;
+
+        self.take_whitespace(false);
+        self.expect(TokenKind::Newline)?;
+
+        Ok(TypeAliasItem {
+            name,
+            export,
+            type_attributes: attributes,
+            aliases,
+        }
+        .into())
     }
 
     pub fn attributes(&mut self) -> Result<Vec<Attribute>, ParseError> {

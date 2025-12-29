@@ -1,10 +1,13 @@
 use thin_vec::thin_vec;
 use yuri_ast::expression::{
-    BinaryExpr, BlockExpr, BlockStatement, CallExpr, Expression, FieldExpr, LiteralExpr, UnaryExpr,
+    BinaryExpr, BlockExpr, BlockStatement, CallExpr, CompoundExpr, CompoundExprField, Expression,
+    FieldExpr, LiteralExpr, UnaryExpr,
 };
 use yuri_ast::item::{Attribute, FunctionItem, OuterDeclaration, ParameterItem, TypeAliasItem};
+use yuri_ast::pretty::AstPretty;
 use yuri_ast::types::{
-    CompoundTy, CompoundTyField, MatrixTy, VectorTy, WRITTEN_VEC2F, WRITTEN_VEC4F, WrittenTy,
+    CompoundTy, CompoundTyField, MatrixTy, VectorTy, WRITTEN_VEC2F, WRITTEN_VEC3F, WRITTEN_VEC4F,
+    WrittenTy,
 };
 use yuri_ast::{Ident, InStorage, Keyword, Qpath, VectorRepr};
 use yuri_common::{BinaryOperator, DimCount, FloatBits, ScalarTy, UnaryOperator};
@@ -56,9 +59,9 @@ macro_rules! parse_test {
             let tokens: Box<[_]> = yuri_lexer::tokenize(source).collect();
             let mut storage = InStorage::default();
 
-            // for tok in &tokens {
-            //     println!(" - {tok:?}");
-            // }
+            for (index, tok) in tokens.iter().enumerate() {
+                println!(" {index}.\t {tok:?}");
+            }
 
             let (ast, mut state) = parse_all(source, &mut storage, &tokens);
 
@@ -70,7 +73,13 @@ macro_rules! parse_test {
                 panic!();
             }
             let expected: fn(state: &mut ParseState) -> Ast = $expect;
-            assert_eq!(ast, expected(&mut state));
+            let expected = expected(&mut state);
+            assert_eq!(ast, expected);
+            // if ast != expected {
+            //     let got_map = ast.iter().map(|od| od.pretty_print_ast(&storage, 0)).collect::<Vec<_>>().join(";\n");
+            //     let expect_map = expected.iter().map(|od| od.pretty_print_ast(&storage, 0)).collect::<Vec<_>>().join(";\n");
+            //     panic!("ASTs are not equal!\n~~~~~~~~~~ Expected: ~~~~~~~~~~\n{}\n\n~~~~~~~~~~ Got: ~~~~~~~~~~\n{}", expect_map, got_map)
+            // }
             println!("{ast:?}");
         }
     };
@@ -354,41 +363,14 @@ parse_test! {
                         }],
                         name: state.str_to_ident("out"),
                         field_ty: WRITTEN_VEC4F
+                    },
+                    CompoundTyField {
+                        attributes: vec![],
+                        name: state.str_to_ident("coord"),
+                        field_ty: WRITTEN_VEC2F
                     }
                 ]
             }.into()
-        }.into(),
-        FunctionItem {
-            attributes: vec![
-                Attribute {
-                    args: None,
-                    path: Qpath(thin_vec![Ident::Keyword(Keyword::Frag)])
-                }
-            ],
-            export: false,
-            name: state.str_to_ident("my_frag_main"),
-            parameters: vec![
-                ParameterItem {
-                    attributes: vec![],
-                    name: state.str_to_ident("coord"),
-                    explicit_type: WRITTEN_VEC2F
-                }
-            ],
-            return_type: WrittenTy::Vector(VectorTy {
-                size: DimCount::Four,
-                repr: VectorRepr::Float(None)
-            }),
-            body: BlockExpr { statements: vec![BlockStatement::Expression(CallExpr {
-                receiver: Expression::Access(Ident::Keyword(Keyword::Vec(VectorTy {
-                    size: DimCount::Four,
-                    repr: VectorRepr::Float(None)
-                }))).into(),
-                arguments: vec![
-                    Expression::Access(state.str_to_ident("coord")),
-                    LiteralExpr::Integer(0).into(),
-                    LiteralExpr::Integer(1).into(),
-                ]
-            }.into())] }
         }.into(),
         FunctionItem {
             attributes: vec![
@@ -399,6 +381,60 @@ parse_test! {
             ],
             export: false,
             name: state.str_to_ident("my_vert_main"),
+            parameters: vec![
+                ParameterItem {
+                    attributes: vec![],
+                    name: state.str_to_ident("pos"),
+                    explicit_type: WRITTEN_VEC3F
+                },
+                ParameterItem {
+                    attributes: vec![],
+                    name: state.str_to_ident("coord"),
+                    explicit_type: WRITTEN_VEC2F
+                }
+            ],
+            return_type: WrittenTy::Alias(Qpath::single(state.str_to_ident("VertexOutput"))),
+            body: BlockExpr { statements: vec![BlockStatement::Expression(CompoundExpr {
+                fields: vec![
+                    CompoundExprField {
+                        attributes: vec![],
+                        name: state.str_to_ident("out"),
+                        written_ty: None,
+                        value: Some(CallExpr {
+                            receiver: Expression::Access(Ident::Keyword(Keyword::Vec(VectorTy {
+                                size: DimCount::Four,
+                                repr: VectorRepr::Float(None)
+                            }))).into(),
+                            arguments: vec![
+                                Expression::Access(state.str_to_ident("pos")),
+                                LiteralExpr::Integer(1).into(),
+                            ]
+                        }.into())
+                    },
+                    CompoundExprField {
+                        attributes: vec![],
+                        name: state.str_to_ident("pos"),
+                        written_ty: None,
+                        value: None
+                    },
+                    CompoundExprField {
+                        attributes: vec![],
+                        name: state.str_to_ident("coord"),
+                        written_ty: None,
+                        value: None
+                    }
+                ]
+            }.into())] }
+        }.into(),
+        FunctionItem {
+            attributes: vec![
+                Attribute {
+                    args: None,
+                    path: Qpath(thin_vec![Ident::Keyword(Keyword::Frag)])
+                }
+            ],
+            export: false,
+            name: state.str_to_ident("my_frag_main"),
             parameters: vec![
                 ParameterItem {
                     attributes: vec![],
@@ -418,6 +454,6 @@ parse_test! {
                     LiteralExpr::Integer(1).into(),
                 ]
             }.into())] }
-        }.into()
+        }.into(),
     ]
 }
